@@ -1,0 +1,95 @@
+package com.kicobicn.TPATools;
+
+import net.minecraft.commands.Commands;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+public class BackHandler {
+    private static final Logger LOGGER = LogManager.getLogger("TPAtool");
+    private static final Map<UUID, PlayerPosition> previousPositions = new HashMap<>();
+
+    public static class PlayerPosition {
+        public final ResourceLocation dimension;
+        public final double x, y, z;
+        public final float yRot, xRot;
+
+        public PlayerPosition(ServerLevel level, double x, double y, double z, float yRot, float xRot) {
+            this.dimension = level.dimension().location();
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.yRot = yRot;
+            this.xRot = xRot;
+        }
+    }
+
+    @SubscribeEvent
+    public static void onRegisterCommands(RegisterCommandsEvent event) {
+        int backPermLevel = TPAHandler.commandPermissions.getOrDefault("back", false) ? 2 : 0;
+        event.getDispatcher().register(
+                Commands.literal("back")
+                        .requires(source -> source.hasPermission(backPermLevel))
+                        .executes(context -> {
+                            try {
+                                ServerPlayer player = context.getSource().getPlayerOrException();
+                                LOGGER.info("Executing /back command for player: {}", player.getName().getString());
+                                return teleportBack(player);
+                            } catch (Exception e) {
+                                LOGGER.error("Unexpected error in /back command: ", e);
+                                context.getSource().sendFailure(Component.literal("An unexpected error occurred."));
+                                return 0;
+                            }
+                        })
+        );
+    }
+
+    public static void recordPosition(ServerPlayer player) {
+        previousPositions.put(player.getUUID(), new PlayerPosition(
+                player.serverLevel(),
+                player.getX(), player.getY(), player.getZ(),
+                player.getYRot(), player.getXRot()
+        ));
+        LOGGER.debug("Recorded position for {}: dimension={}, x={}, y={}, z={}",
+                player.getName().getString(), player.serverLevel().dimension().location(),
+                player.getX(), player.getY(), player.getZ());
+    }
+
+    private static int teleportBack(ServerPlayer player) {
+        PlayerPosition pos = previousPositions.get(player.getUUID());
+        if (pos == null) {
+            player.sendSystemMessage(TPAHandler.translateWithFallback(
+                    "command.tpatool.back.no_position", "No previous position recorded!"
+            ));
+            return 0;
+        }
+        ServerLevel level = player.getServer().getLevel(ResourceKey.create(
+                Registries.DIMENSION, pos.dimension));
+        if (level == null) {
+            player.sendSystemMessage(TPAHandler.translateWithFallback(
+                    "command.tpatool.back.invalid_dimension", "Invalid dimension for previous position!"
+            ));
+            previousPositions.remove(player.getUUID());
+            return 0;
+        }
+        recordPosition(player);
+        player.teleportTo(level, pos.x, pos.y, pos.z, pos.yRot, pos.xRot);
+        player.sendSystemMessage(TPAHandler.translateWithFallback(
+                "command.tpatool.back.success", "Teleported to previous position."
+        ));
+        LOGGER.info("Player {} teleported back to dimension={}, x={}, y={}, z={}",
+                player.getName().getString(), pos.dimension, pos.x, pos.y, pos.z);
+        return 1;
+    }
+}
