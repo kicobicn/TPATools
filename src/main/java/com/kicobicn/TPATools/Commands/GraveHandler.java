@@ -1,8 +1,9 @@
-package com.kicobicn.TPATools;
+package com.kicobicn.TPATools.Commands;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
+import com.kicobicn.TPATools.config.ModConfigs;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -13,8 +14,6 @@ import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.loading.FMLPaths;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,53 +23,52 @@ import java.util.Map;
 import java.util.UUID;
 
 public class GraveHandler {
-    private static final Logger LOGGER = LogManager.getLogger("TPAtool");
     private static final Map<UUID, BackHandler.PlayerPosition> gravePositions = new HashMap<>();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     //加载死亡位置
     public static void loadGraves() {
         try {
-            Path path = FMLPaths.CONFIGDIR.get().resolve("tpatool_graves.json");
+            Path path = ModConfigs.getConfigDir().resolve("tpatool_graves.json");
             if (Files.exists(path)) {
                 String jsonContent = Files.readString(path);
                 Map<UUID, BackHandler.PlayerPosition> loadedGraves = GSON.fromJson(jsonContent, new TypeToken<Map<UUID, BackHandler.PlayerPosition>>(){}.getType());
                 gravePositions.clear();
                 if (loadedGraves != null) {
                     gravePositions.putAll(loadedGraves);
-                    LOGGER.info("Loaded graves from tpatool_graves.json");
+                    ModConfigs.DebugLog.info("Loaded graves from tpatool_graves.json");
                 }
             }
         } catch (IOException e) {
-            LOGGER.error("Failed to load graves: {}", e.getMessage());
+            ModConfigs.DebugLog.error("Failed to load graves: {}", e.getMessage());
         }
     }
 
     //保存死亡位置
     public static void saveGraves() {
         try {
-            Path path = FMLPaths.CONFIGDIR.get().resolve("tpatool_graves.json");
+            Path path = ModConfigs.getConfigDir().resolve("tpatool_graves.json");
             Files.writeString(path, GSON.toJson(gravePositions));
-            LOGGER.info("Saved graves to tpatool_graves.json");
+            ModConfigs.DebugLog.info("Saved graves to tpatool_graves.json");
         } catch (IOException e) {
-            LOGGER.error("Failed to save graves: {}", e.getMessage());
+            ModConfigs.DebugLog.error("Failed to save graves: {}", e.getMessage());
         }
     }
 
     //注册指令
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        int gravePermLevel = TPAHandler.commandPermissions.getOrDefault("grave", false) ? 2 : 0;
+        int gravePermLevel = ModConfigs.commandPermissions.getOrDefault("grave", false) ? 2 : 0;
         event.getDispatcher().register(
                 Commands.literal("grave")
                         .requires(source -> source.hasPermission(gravePermLevel))
                         .executes(context -> {
                             try {
                                 ServerPlayer player = context.getSource().getPlayerOrException();
-                                LOGGER.info("Executing /grave command for player: {}", player.getName().getString());
+                                ModConfigs.DebugLog.info("Executing /grave command for player: {}", player.getName().getString());
                                 return teleportToGrave(player);
                             } catch (Exception e) {
-                                LOGGER.error("Unexpected error in /grave command: ", e);
+                                ModConfigs.DebugLog.error("Unexpected error in /grave command: ", e);
                                 context.getSource().sendFailure(Component.literal("An unexpected error occurred."));
                                 return 0;
                             }
@@ -87,7 +85,7 @@ public class GraveHandler {
                     player.getYRot(), player.getXRot()
             ));
             saveGraves();
-            LOGGER.info("Recorded grave for {} at dimension={}, x={}, y={}, z={}",
+            ModConfigs.DebugLog.info("Recorded grave for {} at dimension={}, x={}, y={}, z={}",
                     player.getName().getString(), player.serverLevel().dimension().location(),
                     player.getX(), player.getY(), player.getZ());
         }
@@ -117,7 +115,7 @@ public class GraveHandler {
         player.sendSystemMessage(TPAHandler.translateWithFallback(
                 "command.tpatool.grave.success", "Teleported to last death position."
         ));
-        LOGGER.info("Player {} teleported to grave at dimension={}, x={}, y={}, z={}",
+        ModConfigs.DebugLog.info("Player {} teleported to grave at dimension={}, x={}, y={}, z={}",
                 player.getName().getString(), pos.dimension, pos.x, pos.y, pos.z);
         return 1;
     }

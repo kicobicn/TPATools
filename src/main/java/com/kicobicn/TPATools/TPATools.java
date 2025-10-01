@@ -1,5 +1,7 @@
 package com.kicobicn.TPATools;
 
+import com.kicobicn.TPATools.Commands.*;
+import com.kicobicn.TPATools.config.ModConfigs;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
@@ -12,9 +14,9 @@ import org.slf4j.Logger;
 
 @Mod(TPATools.MODID)
 public class TPATools {
-    // Define mod id in a common place for everything to reference
+
     public static final String MODID = "tpatools";
-    // Directly reference a slf4j logger
+
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public TPATools() {
@@ -23,6 +25,8 @@ public class TPATools {
         MinecraftForge.EVENT_BUS.register(BackHandler.class);
         MinecraftForge.EVENT_BUS.register(HomeHandler.class);
         MinecraftForge.EVENT_BUS.register(GraveHandler.class);
+        MinecraftForge.EVENT_BUS.register(ModConfigs.class);
+        MinecraftForge.EVENT_BUS.register(new ChatHandler());
         MinecraftForge.EVENT_BUS.register(new Object() {
             @SubscribeEvent
             public void onServerTick(TickEvent.ServerTickEvent event) {
@@ -31,7 +35,8 @@ public class TPATools {
                 }
             }
         });
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, ModConfigs.CONFIG, "tpatools/tpatool.toml");
 
-        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, TPAHandler.CONFIG,"tpatool.toml");
+        ModConfigs.getConfigDir();
     }
 }

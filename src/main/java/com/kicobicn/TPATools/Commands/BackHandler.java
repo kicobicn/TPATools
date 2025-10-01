@@ -1,5 +1,6 @@
-package com.kicobicn.TPATools;
+package com.kicobicn.TPATools.Commands;
 
+import com.kicobicn.TPATools.config.ModConfigs;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -9,15 +10,12 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 public class BackHandler {
-    private static final Logger LOGGER = LogManager.getLogger("TPAtool");
     private static final Map<UUID, PlayerPosition> previousPositions = new HashMap<>();
 
     public static class PlayerPosition {
@@ -37,17 +35,17 @@ public class BackHandler {
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        int backPermLevel = TPAHandler.commandPermissions.getOrDefault("back", false) ? 2 : 0;
+        int backPermLevel = ModConfigs.commandPermissions.getOrDefault("back", false) ? 2 : 0;
         event.getDispatcher().register(
                 Commands.literal("back")
                         .requires(source -> source.hasPermission(backPermLevel))
                         .executes(context -> {
                             try {
                                 ServerPlayer player = context.getSource().getPlayerOrException();
-                                LOGGER.info("Executing /back command for player: {}", player.getName().getString());
+                                ModConfigs.DebugLog.info("Executing /back command for player: {}", player.getName().getString());
                                 return teleportBack(player);
                             } catch (Exception e) {
-                                LOGGER.error("Unexpected error in /back command: ", e);
+                                ModConfigs.DebugLog.error("Unexpected error in /back command: ", e);
                                 context.getSource().sendFailure(Component.literal("An unexpected error occurred."));
                                 return 0;
                             }
@@ -61,7 +59,7 @@ public class BackHandler {
                 player.getX(), player.getY(), player.getZ(),
                 player.getYRot(), player.getXRot()
         ));
-        LOGGER.debug("Recorded position for {}: dimension={}, x={}, y={}, z={}",
+        ModConfigs.DebugLog.log("Recorded position for {}: dimension={}, x={}, y={}, z={}",
                 player.getName().getString(), player.serverLevel().dimension().location(),
                 player.getX(), player.getY(), player.getZ());
     }
@@ -88,7 +86,7 @@ public class BackHandler {
         player.sendSystemMessage(TPAHandler.translateWithFallback(
                 "command.tpatool.back.success", "Teleported to previous position."
         ));
-        LOGGER.info("Player {} teleported back to dimension={}, x={}, y={}, z={}",
+        ModConfigs.DebugLog.info("Player {} teleported back to dimension={}, x={}, y={}, z={}",
                 player.getName().getString(), pos.dimension, pos.x, pos.y, pos.z);
         return 1;
     }

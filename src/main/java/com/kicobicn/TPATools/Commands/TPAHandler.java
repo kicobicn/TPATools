@@ -1,10 +1,8 @@
-package com.kicobicn.TPATools;
+package com.kicobicn.TPATools.Commands;
 
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.mojang.brigadier.arguments.IntegerArgumentType;
-import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.ChatFormatting;
@@ -17,15 +15,13 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.server.ServerLifecycleHooks;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.kicobicn.TPATools.config.ModConfigs;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -36,35 +32,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 
+import static com.kicobicn.TPATools.config.ModConfigs.*;
+
 public class TPAHandler {
-    private static final Logger LOGGER = LogManager.getLogger("TPAtool");
     private static final Map<String, String> translations = new HashMap<>();
     private static final Map<UUID, List<TPARequest>> requests = new HashMap<>();
     private static final Map<UUID, Long> cooldowns = new HashMap<>();
     private static final Map<UUID, Boolean> toggleStates = new HashMap<>();
     private static final Map<UUID, Set<UUID>> lockedPlayers = new HashMap<>();
-    static final Map<String, Boolean> commandPermissions = new HashMap<>();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    public static final ForgeConfigSpec CONFIG;
-    public static ForgeConfigSpec.LongValue COOLDOWN_TIME;
-    public static ForgeConfigSpec.IntValue TIMEOUT_TICKS;
-    public static ForgeConfigSpec.ConfigValue<String> DEFAULT_LANGUAGE;
-    public static ForgeConfigSpec.IntValue MAX_HOMES;
-
-    static {
-        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
-        builder.push("tpa");
-        COOLDOWN_TIME = builder.comment("Cooldown time for TPA commands in milliseconds")
-                .defineInRange("cooldown", 3 * 1000L, 0, Long.MAX_VALUE);
-        TIMEOUT_TICKS = builder.comment("Timeout for TPA requests in ticks")
-                .defineInRange("timeout", 30 * 20, 0, Integer.MAX_VALUE);
-        DEFAULT_LANGUAGE = builder.comment("Default language for messages (e.g., 'en_us', 'zh_cn')")
-                .define("language", "zh_cn");
-        MAX_HOMES = builder.comment("Maximum number of homes per player")
-                .defineInRange("max_homes", 2, 1, Integer.MAX_VALUE);
-        builder.pop();
-        CONFIG = builder.build();
-    }
 
     public static class TPARequest {
         public final ServerPlayer sender;
@@ -110,13 +86,13 @@ public class TPAHandler {
                 String jsonContent = new String(resource.open().readAllBytes(), StandardCharsets.UTF_8);
                 Map<String, String> loadedTranslations = GSON.fromJson(jsonContent, new TypeToken<Map<String, String>>(){}.getType());
                 translations.putAll(loadedTranslations);
-                LOGGER.info("Loaded translations for language: {}", lang);
+                ModConfigs.DebugLog.info("Loaded translations for language: {}", lang);
             } else {
-                LOGGER.warn("Server not available, using fallback translations for {}", lang);
+                ModConfigs.DebugLog.warn("Server not available, using fallback translations for {}", lang);
                 loadFallbackTranslations();
             }
         } catch (IOException e) {
-            LOGGER.error("Failed to load translations for {}: {}, using fallback", lang, e.getMessage());
+            ModConfigs.DebugLog.error("Failed to load translations for {}: {}, using fallback", lang, e.getMessage());
             loadFallbackTranslations();
         }
     }
@@ -128,94 +104,120 @@ public class TPAHandler {
         translations.put("command.tpatool.tpa.deny", "Deny");
     }
 
+    private static final Set<String> availableLanguages = new HashSet<>(Set.of("en_us", "zh_cn"));
+
+    public static void detectAvailableLanguages() {
+        availableLanguages.clear();
+        try {
+            MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+            if (server != null) {
+                var resources = server.getResourceManager().listResources("lang", path -> path.getPath().endsWith(".json"));
+                for (var entry : resources.entrySet()) {
+                    ResourceLocation loc = entry.getKey();
+                    // loc: tpatools:lang/en_us.json
+                    String path = loc.getPath();
+                    if (path.startsWith("lang/") && path.endsWith(".json")) {
+                        String langCode = path.substring(5, path.length() - 5); // 去掉 "lang/" 和 ".json"
+                        availableLanguages.add(langCode);
+                    }
+                }
+                if (availableLanguages.isEmpty()) {
+                    ModConfigs.DebugLog.warn("No languages detected, fallback to en_us/zh_cn");
+                    availableLanguages.add("en_us");
+                    availableLanguages.add("zh_cn");
+                }
+                ModConfigs.DebugLog.info("Detected languages: {}", availableLanguages);
+            }
+        } catch (Exception e) {
+            ModConfigs.DebugLog.error("Failed to detect languages: {}", e.getMessage());
+        }
+    }
+
     // 加载命令权限状态
     private static void loadCommandPermissions() {
         try {
-            Path path = FMLPaths.CONFIGDIR.get().resolve("tpatool.json");
+            Path path = ModConfigs.getConfigDir().resolve("tpatool.json");
             if (Files.exists(path)) {
                 String jsonContent = Files.readString(path);
                 Map<String, Boolean> loadedPermissions = GSON.fromJson(jsonContent, new TypeToken<Map<String, Boolean>>(){}.getType());
-                commandPermissions.clear();
+                ModConfigs.commandPermissions.clear();
                 if (loadedPermissions != null) {
-                    commandPermissions.putAll(loadedPermissions);
-                    LOGGER.info("Loaded command permissions from tpatool.json");
+                    ModConfigs.commandPermissions.putAll(loadedPermissions);
+                    ModConfigs.DebugLog.info("Loaded command permissions from {}", path.toString());
                 }
             }
-            commandPermissions.putIfAbsent("tpa", false);
-            commandPermissions.putIfAbsent("home", false);
-            commandPermissions.putIfAbsent("grave", false);
-            commandPermissions.putIfAbsent("back", false);
+            ModConfigs.initCommandPermissions();
         } catch (IOException e) {
-            LOGGER.error("Failed to load command permissions: {}", e.getMessage());
+            ModConfigs.DebugLog.error("Failed to load command permissions: {}", e.getMessage());
         }
     }
 
     // 保存命令权限状态
-    private static void saveCommandPermissions() {
+    public static void saveCommandPermissions() {
         try {
-            Path path = FMLPaths.CONFIGDIR.get().resolve("tpatool.json");
-            Files.writeString(path, GSON.toJson(commandPermissions));
-            LOGGER.info("Saved command permissions to tpatool.json");
+            Path path = ModConfigs.getConfigDir().resolve("tpatool.json");
+            Files.writeString(path, GSON.toJson(ModConfigs.commandPermissions));
+            ModConfigs.DebugLog.info("Saved command permissions to {}", path.toString());
         } catch (IOException e) {
-            LOGGER.error("Failed to save command permissions: {}", e.getMessage());
+            ModConfigs.DebugLog.error("Failed to save command permissions: {}", e.getMessage());
         }
     }
 
     // 加载免打扰状态
     private static void loadToggleStates() {
         try {
-            Path path = FMLPaths.CONFIGDIR.get().resolve("tpatool_toggles.json");
+            Path path = ModConfigs.getConfigDir().resolve("tpatool_toggles.json");
             if (Files.exists(path)) {
                 String jsonContent = Files.readString(path);
                 Map<UUID, Boolean> loadedToggles = GSON.fromJson(jsonContent, new TypeToken<Map<UUID, Boolean>>(){}.getType());
                 toggleStates.clear();
                 if (loadedToggles != null) {
                     toggleStates.putAll(loadedToggles);
-                    LOGGER.info("Loaded toggle states from tpatool_toggles.json");
+                    ModConfigs.DebugLog.info("Loaded toggle states from {}", path.toString());
                 }
             }
         } catch (IOException e) {
-            LOGGER.error("Failed to load toggle states: {}", e.getMessage());
+            ModConfigs.DebugLog.error("Failed to load toggle states: {}", e.getMessage());
         }
     }
 
     // 保存免打扰状态
     private static void saveToggleStates() {
         try {
-            Path path = FMLPaths.CONFIGDIR.get().resolve("tpatool_toggles.json");
+            Path path = ModConfigs.getConfigDir().resolve("tpatool_toggles.json");
             Files.writeString(path, GSON.toJson(toggleStates));
-            LOGGER.info("Saved toggle states to tpatool_toggles.json");
+            ModConfigs.DebugLog.info("Saved toggle states to {}", path.toString());
         } catch (IOException e) {
-            LOGGER.error("Failed to save toggle states: {}", e.getMessage());
+            ModConfigs.DebugLog.error("Failed to save toggle states: {}", e.getMessage());
         }
     }
 
     // 加载锁定玩家列表
     private static void loadLockedPlayers() {
         try {
-            Path path = FMLPaths.CONFIGDIR.get().resolve("tpatool_locks.json");
+            Path path = ModConfigs.getConfigDir().resolve("tpatool_locks.json");
             if (Files.exists(path)) {
                 String jsonContent = Files.readString(path);
                 Map<UUID, Set<UUID>> loadedLocks = GSON.fromJson(jsonContent, new TypeToken<Map<UUID, Set<UUID>>>(){}.getType());
                 lockedPlayers.clear();
                 if (loadedLocks != null) {
                     lockedPlayers.putAll(loadedLocks);
-                    LOGGER.info("Loaded locked players from tpatool_locks.json");
+                    ModConfigs.DebugLog.info("Loaded locked players from {}", path.toString());
                 }
             }
         } catch (IOException e) {
-            LOGGER.error("Failed to load locked players: {}", e.getMessage());
+            ModConfigs.DebugLog.error("Failed to load locked players: {}", e.getMessage());
         }
     }
 
     // 保存锁定玩家列表
     private static void saveLockedPlayers() {
         try {
-            Path path = FMLPaths.CONFIGDIR.get().resolve("tpatool_locks.json");
+            Path path = ModConfigs.getConfigDir().resolve("tpatool_locks.json");
             Files.writeString(path, GSON.toJson(lockedPlayers));
-            LOGGER.info("Saved locked players to tpatool_locks.json");
+            ModConfigs.DebugLog.info("Saved locked players to {}", path.toString());
         } catch (IOException e) {
-            LOGGER.error("Failed to save locked players: {}", e.getMessage());
+            ModConfigs.DebugLog.error("Failed to save locked players: {}", e.getMessage());
         }
     }
 
@@ -242,13 +244,20 @@ public class TPAHandler {
         return builder.suggest("true").suggest("false").buildFuture();
     };
 
-    // Tab补全：/tpatool setlanguage 的 lang 参数
-    private static final SuggestionProvider<CommandSourceStack> LANGUAGE_SUGGESTIONS = (context, builder) -> {
-        return builder.suggest("en_us").suggest("zh_cn").buildFuture();
+    // Tab补全：时间参数建议
+    private static final SuggestionProvider<CommandSourceStack> TIME_SUGGESTIONS = (context, builder) -> {
+        builder.suggest("10");
+        builder.suggest("30");
+        builder.suggest("60");
+        builder.suggest("120");
+        builder.suggest("300");
+        return builder.buildFuture();
     };
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
+        detectAvailableLanguages();
+
         int tpaPermLevel = commandPermissions.getOrDefault("tpa", false) ? 2 : 0;
         int homePermLevel = commandPermissions.getOrDefault("home", false) ? 2 : 0;
         int gravePermLevel = commandPermissions.getOrDefault("grave", false) ? 2 : 0;
@@ -264,11 +273,11 @@ public class TPAHandler {
                                         ServerPlayer target = EntityArgument.getPlayer(context, "player");
                                         return sendTPARequest(sender, target, false);
                                     } catch (CommandSyntaxException e) {
-                                        LOGGER.error("Failed to parse /tpa: {}", e.getMessage());
+                                        ModConfigs.DebugLog.error("Failed to parse /tpa: {}", e.getMessage());
                                         context.getSource().sendFailure(Component.literal("Invalid player name."));
                                         return 0;
                                     } catch (Exception e) {
-                                        LOGGER.error("Unexpected error in /tpa: ", e);
+                                        ModConfigs.DebugLog.error("Unexpected error in /tpa: ", e);
                                         context.getSource().sendFailure(Component.literal("An unexpected error occurred."));
                                         return 0;
                                     }
@@ -285,11 +294,11 @@ public class TPAHandler {
                                         ServerPlayer target = EntityArgument.getPlayer(context, "player");
                                         return sendTPARequest(sender, target, true);
                                     } catch (CommandSyntaxException e) {
-                                        LOGGER.error("Failed to parse /tpahere: {}", e.getMessage());
+                                        ModConfigs.DebugLog.error("Failed to parse /tpahere: {}", e.getMessage());
                                         context.getSource().sendFailure(Component.literal("Invalid player name."));
                                         return 0;
                                     } catch (Exception e) {
-                                        LOGGER.error("Unexpected error in /tpahere: ", e);
+                                        ModConfigs.DebugLog.error("Unexpected error in /tpahere: ", e);
                                         context.getSource().sendFailure(Component.literal("An unexpected error occurred."));
                                         return 0;
                                     }
@@ -306,7 +315,7 @@ public class TPAHandler {
                                         ServerPlayer sender = EntityArgument.getPlayer(context, "player");
                                         return acceptTPARequest(context.getSource().getPlayerOrException(), sender);
                                     } catch (CommandSyntaxException e) {
-                                        LOGGER.error("Failed to parse /tpaccept: {}", e.getMessage());
+                                        ModConfigs.DebugLog.error("Failed to parse /tpaccept: {}", e.getMessage());
                                         context.getSource().sendFailure(Component.literal("Invalid player name."));
                                         return 0;
                                     }
@@ -323,7 +332,7 @@ public class TPAHandler {
                                         ServerPlayer sender = EntityArgument.getPlayer(context, "player");
                                         return denyTPARequest(context.getSource().getPlayerOrException(), sender);
                                     } catch (CommandSyntaxException e) {
-                                        LOGGER.error("Failed to parse /tpadeny: {}", e.getMessage());
+                                        ModConfigs.DebugLog.error("Failed to parse /tpadeny: {}", e.getMessage());
                                         context.getSource().sendFailure(Component.literal("Invalid player name."));
                                         return 0;
                                     }
@@ -340,7 +349,7 @@ public class TPAHandler {
                                         ServerPlayer target = EntityArgument.getPlayer(context, "player");
                                         return cancelTPARequest(context.getSource().getPlayerOrException(), target);
                                     } catch (CommandSyntaxException e) {
-                                        LOGGER.error("Failed to parse /tpacancel: {}", e.getMessage());
+                                        ModConfigs.DebugLog.error("Failed to parse /tpacancel: {}", e.getMessage());
                                         context.getSource().sendFailure(Component.literal("Invalid player name."));
                                         return 0;
                                     }
@@ -362,7 +371,7 @@ public class TPAHandler {
                                         ServerPlayer target = EntityArgument.getPlayer(context, "player");
                                         return lockTPA(context.getSource().getPlayerOrException(), target);
                                     } catch (CommandSyntaxException e) {
-                                        LOGGER.error("Failed to parse /tpalock: {}", e.getMessage());
+                                        ModConfigs.DebugLog.error("Failed to parse /tpalock: {}", e.getMessage());
                                         context.getSource().sendFailure(Component.literal("Invalid player name."));
                                         return 0;
                                     }
@@ -378,78 +387,11 @@ public class TPAHandler {
                                         ServerPlayer target = EntityArgument.getPlayer(context, "player");
                                         return unlockTPA(context.getSource().getPlayerOrException(), target);
                                     } catch (CommandSyntaxException e) {
-                                        LOGGER.error("Failed to parse /tpaunlock: {}", e.getMessage());
+                                        ModConfigs.DebugLog.error("Failed to parse /tpaunlock: {}", e.getMessage());
                                         context.getSource().sendFailure(Component.literal("Invalid player name."));
                                         return 0;
                                     }
                                 }))
-        );
-
-        event.getDispatcher().register(
-                Commands.literal("tpatool")
-                        .requires(source -> source.hasPermission(2))
-                        .then(Commands.literal("setlanguage")
-                                .then(Commands.argument("lang", StringArgumentType.string())
-                                        .suggests(LANGUAGE_SUGGESTIONS)
-                                        .executes(context -> {
-                                            String lang = StringArgumentType.getString(context, "lang");
-                                            if (lang.equals("en_us") || lang.equals("zh_cn")) {
-                                                DEFAULT_LANGUAGE.set(lang);
-                                                DEFAULT_LANGUAGE.save();
-                                                loadTranslations(lang);
-                                                context.getSource().sendSuccess(
-                                                        () -> translateWithFallback("command.tpatool.setlanguage.success", "Language set to %s.", lang),
-                                                        true
-                                                );
-                                                LOGGER.info("Language switched to {} by {}", lang, context.getSource().getDisplayName().getString());
-                                                return 1;
-                                            }
-                                            context.getSource().sendFailure(
-                                                    translateWithFallback("command.tpatool.setlanguage.invalid", "Invalid language. Use 'en_us' or 'zh_cn'.")
-                                            );
-                                            return 0;
-                                        })))
-                        .then(Commands.literal("setmaxhome")
-                                .then(Commands.argument("count", IntegerArgumentType.integer(1))
-                                        .executes(context -> {
-                                            int count = IntegerArgumentType.getInteger(context, "count");
-                                            MAX_HOMES.set(count);
-                                            MAX_HOMES.save();
-                                            context.getSource().sendSuccess(
-                                                    () -> translateWithFallback("command.tpatool.setmaxhome.success", "Maximum homes set to %s.", count),
-                                                    true
-                                            );
-                                            LOGGER.info("Max homes set to {} by {}", count, context.getSource().getDisplayName().getString());
-                                            return 1;
-                                        })))
-                        .then(Commands.literal("needop")
-                                .then(Commands.argument("command", StringArgumentType.string())
-                                        .suggests(COMMAND_SUGGESTIONS)
-                                        .then(Commands.argument("enable", StringArgumentType.string())
-                                                .suggests(BOOLEAN_SUGGESTIONS)
-                                                .executes(context -> {
-                                                    String command = StringArgumentType.getString(context, "command");
-                                                    String enableStr = StringArgumentType.getString(context, "enable");
-                                                    boolean enable = enableStr.equalsIgnoreCase("true");
-                                                    if (!Arrays.asList("tpa", "home", "grave", "back").contains(command)) {
-                                                        context.getSource().sendFailure(
-                                                                translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', or 'back'.")
-                                                        );
-                                                        return 0;
-                                                    }
-                                                    commandPermissions.put(command, enable);
-                                                    saveCommandPermissions();
-                                                    context.getSource().sendSuccess(
-                                                            () -> translateWithFallback(
-                                                                    enable ? "command.tpatool.needop.success_enabled" : "command.tpatool.needop.success_disabled",
-                                                                    enable ? "%s commands now require OP permission." : "%s commands now do not require OP permission.",
-                                                                    command
-                                                            ),
-                                                            true
-                                                    );
-                                                    LOGGER.info("{} commands set to {} OP by {}", command, enable ? "require" : "not require", context.getSource().getDisplayName().getString());
-                                                    return 1;
-                                                }))))
         );
     }
 
@@ -463,8 +405,18 @@ public class TPAHandler {
             sender.sendSystemMessage(translateWithFallback("command.tpatool.tpa.self", "You cannot teleport to yourself!"));
             return 0;
         }
-        if (!canSendRequest(sender)) {
-            sender.sendSystemMessage(translateWithFallback("command.tpatool.tpa.cooldown", "Please wait for the cooldown (60 seconds)!"));
+
+        Long lastRequest = cooldowns.get(sender.getUUID());
+        long currentTime = System.currentTimeMillis();
+        long cooldownMs = COOLDOWN_TIME.get();
+
+        if (lastRequest != null && currentTime - lastRequest < cooldownMs) {
+            long remainingSeconds = (cooldownMs - (currentTime - lastRequest)) / 1000;
+            sender.sendSystemMessage(translateWithFallback(
+                    "command.tpatool.tpa.cooldown",
+                    "Please wait for the cooldown (%d seconds)!",
+                    remainingSeconds
+            ));
             return 0;
         }
         if (!target.isAlive()) {
@@ -500,7 +452,7 @@ public class TPAHandler {
         target.sendSystemMessage(message);
         sender.sendSystemMessage(translateWithFallback("command.tpatool.tpa.sent", "Teleport request sent to %s.", target.getName()));
         cooldowns.put(sender.getUUID(), System.currentTimeMillis());
-        LOGGER.info("{} request sent: {} -> {}", isTPHere ? "TPAHere" : "TPA", senderName, target.getName().getString());
+        ModConfigs.DebugLog.log("{} request sent: {} -> {}", isTPHere ? "TPAHere" : "TPA", senderName, target.getName().getString());
         return 1;
     }
 
@@ -551,14 +503,16 @@ public class TPAHandler {
                 request.sender.getName()
         ));
         request.sender.sendSystemMessage(translateWithFallback(
-                request.isTPHere ? "command.tpatool.tpa.accepted_by" : "command.tpatool.tpa.accepted_by",
+                "command.tpatool.tpa.accepted_by",
                 "Your teleport request was accepted by %s!", target.getName()
         ));
         targetRequests.remove(request);
         if (targetRequests.isEmpty()) {
             requests.remove(target.getUUID());
         }
-        LOGGER.info("TPA request accepted: {} teleported to {}", request.isTPHere ? target.getName().getString() : request.sender.getName().getString(), request.isTPHere ? request.sender.getName().getString() : target.getName().getString());
+        ModConfigs.DebugLog.log("TPA request accepted: {} teleported to {}",
+                request.isTPHere ? target.getName().getString() : request.sender.getName().getString(),
+                request.isTPHere ? request.sender.getName().getString() : target.getName().getString());
         return 1;
     }
 
@@ -587,14 +541,14 @@ public class TPAHandler {
                 request.sender.getName()
         ));
         request.sender.sendSystemMessage(translateWithFallback(
-                request.isTPHere ? "command.tpatool.tpa.denied_by" : "command.tpatool.tpa.denied_by",
+                "command.tpatool.tpa.denied_by",
                 "%s denied your teleport request.", target.getName()
         ));
         targetRequests.remove(request);
         if (targetRequests.isEmpty()) {
             requests.remove(target.getUUID());
         }
-        LOGGER.info("TPA request denied: {} -> {}", request.sender.getName().getString(), target.getName().getString());
+        ModConfigs.DebugLog.info("TPA request denied: {} -> {}", request.sender.getName().getString(), target.getName().getString());
         return 1;
     }
 
@@ -612,7 +566,7 @@ public class TPAHandler {
                     sender.sendSystemMessage(translateWithFallback(
                             "command.tpatool.tpa.cancelled_self", "Cancelled teleport request to %s.", request.target.getName()
                     ));
-                    LOGGER.info("TPA request cancelled: {} -> {}", sender.getName().getString(), request.target.getName().getString());
+                    ModConfigs.DebugLog.info("TPA request cancelled: {} -> {}", sender.getName().getString(), request.target.getName().getString());
                     cancelled = true;
                 }
             }
@@ -636,7 +590,7 @@ public class TPAHandler {
                 "command.tpatool.tpa.toggle_" + (newState ? "on" : "off"),
                 newState ? "TPA requests are now disabled." : "TPA requests are now enabled."
         ));
-        LOGGER.info("Player {} toggled TPA to {}", player.getName().getString(), newState ? "off" : "on");
+        ModConfigs.DebugLog.info("Player {} toggled TPA to {}", player.getName().getString(), newState ? "off" : "on");
         return 1;
     }
 
@@ -653,7 +607,7 @@ public class TPAHandler {
         locked.add(target.getUUID());
         saveLockedPlayers();
         player.sendSystemMessage(translateWithFallback("command.tpatool.tpa.locked_player", "Locked TPA requests from %s.", target.getName()));
-        LOGGER.info("Player {} locked TPA from {}", player.getName().getString(), target.getName().getString());
+        ModConfigs.DebugLog.info("Player {} locked TPA from {}", player.getName().getString(), target.getName().getString());
         return 1;
     }
 
@@ -673,7 +627,7 @@ public class TPAHandler {
         }
         saveLockedPlayers();
         player.sendSystemMessage(translateWithFallback("command.tpatool.tpa.unlocked_player", "Unlocked TPA requests from %s.", target.getName()));
-        LOGGER.info("Player {} unlocked TPA from {}", player.getName().getString(), target.getName().getString());
+        ModConfigs.DebugLog.info("Player {} unlocked TPA from {}", player.getName().getString(), target.getName().getString());
         return 1;
     }
 
@@ -689,11 +643,12 @@ public class TPAHandler {
                             "Teleport request from %s has timed out.", request.sender.getName()
                     ));
                     request.sender.sendSystemMessage(translateWithFallback(
-                            request.isTPHere ? "command.tpatool.tpa.timeout_self" : "command.tpatool.tpa.timeout_self",
+                            "command.tpatool.tpa.timeout_self",
                             "Your teleport request to %s has timed out.", request.target.getName()
                     ));
                     iterator.remove();
-                    LOGGER.info("TPA request timed out: {} -> {}", request.sender.getName().getString(), request.target.getName().getString());
+                    ModConfigs.DebugLog.info("TPA request timed out: {} -> {}",
+                            request.sender.getName().getString(), request.target.getName().getString());
                 }
             }
             if (entry.getValue().isEmpty()) {

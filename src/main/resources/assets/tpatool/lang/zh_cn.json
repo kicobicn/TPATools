@@ -1,6 +1,6 @@
 {
   "command.tpatool.tpa.self": "你不能传送给自己！",
-  "command.tpatool.tpa.cooldown": "请等待冷却时间（60秒）！",
+  "command.tpatool.tpa.cooldown": "请等待冷却时间（%d 秒）！",
   "command.tpatool.tpa.pending": "%s 已经有一个待处理的传送请求。",
   "command.tpatool.tpa.target_dead": "目标玩家已死亡！",
   "command.tpatool.tpa.sent": "已向 %s 发送传送请求。",
@@ -78,5 +78,11 @@
   "command.tpatool.setmaxhome.success": "最大家数量已设置为 %s。",
   "command.tpatool.needop.invalid_command": "无效的命令。请使用 'tpa'、'home'、'grave' 或 'back'。",
   "command.tpatool.needop.success_enabled": "%s 命令现在需要 OP 权限。",
-  "command.tpatool.needop.success_disabled": "%s 命令现在不需要 OP 权限。"
+  "command.tpatool.needop.success_disabled": "%s 命令现在不需要 OP 权限。",
+  "command.tpatool.tpacdtime.success": "TPA 冷却时间已设置为 %d 秒。",
+  "command.tpatool.tpawaittime.success": "TPA 等待时间已设置为 %d 秒。",
+  "command.tpatool.chat.mention": "%s 提到了你",
+  "command.tpatool.debug.enabled": "TPATools 调试模式已启用。",
+  "command.tpatool.debug.disabled": "TPATools 调试模式已禁用。",
+  "command.tpatool.debug.status": "TPATools 调试模式当前为%s。"
 }

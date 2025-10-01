@@ -1,6 +1,6 @@
 {
   "command.tpatool.tpa.self": "You cannot teleport to yourself!",
-  "command.tpatool.tpa.cooldown": "Please wait for the cooldown (60 seconds)!",
+  "command.tpatool.tpa.cooldown": "Please wait for the cooldown (%d seconds)!",
   "command.tpatool.tpa.pending": "%s already has a pending teleport request.",
   "command.tpatool.tpa.target_dead": "The target player is dead!",
   "command.tpatool.tpa.sent": "Teleport request sent to %s.",
@@ -78,5 +78,11 @@
   "command.tpatool.setmaxhome.success": "Maximum homes set to %s.",
   "command.tpatool.needop.invalid_command": "Invalid command. Use 'tpa', 'home', 'grave', or 'back'.",
   "command.tpatool.needop.success_enabled": "%s commands now require OP permission.",
-  "command.tpatool.needop.success_disabled": "%s commands now do not require OP permission."
+  "command.tpatool.needop.success_disabled": "%s commands now do not require OP permission.",
+  "command.tpatool.tpacdtime.success": "TPA cooldown time set to %d seconds.",
+  "command.tpatool.tpawaittime.success": "TPA wait time set to %d seconds.",
+  "command.tpatool.chat.mention": "%s mentioned you",
+  "command.tpatool.debug.enabled": "TPATools mod Debug mode enabled.",
+  "command.tpatool.debug.disabled": "TPATools mod Debug mode disabled.",
+  "command.tpatool.debug.status": "TPATools mod Debug mode is currently %s."
 }
