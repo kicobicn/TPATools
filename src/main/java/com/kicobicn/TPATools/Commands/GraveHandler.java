@@ -13,7 +13,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.loading.FMLPaths;
+
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -58,10 +58,10 @@ public class GraveHandler {
     //注册指令
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        int gravePermLevel = ModConfigs.commandPermissions.getOrDefault("grave", false) ? 2 : 0;
+
         event.getDispatcher().register(
                 Commands.literal("grave")
-                        .requires(source -> source.hasPermission(gravePermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "grave"))
                         .executes(context -> {
                             try {
                                 ServerPlayer player = context.getSource().getPlayerOrException();

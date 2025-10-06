@@ -47,6 +47,15 @@ public class ModConfigs {
         return configDir;
     }
 
+    public static boolean checkCommandPermission(CommandSourceStack source, String command) {
+        boolean needOp = commandPermissions.getOrDefault(command, false);
+        if (needOp) {
+            return source.hasPermission(2); // 需要OP权限
+        } else {
+            return true; // 不需要OP权限，所有玩家都可以使用
+        }
+    }
+
     // 命令权限状态
     public static final Map<String, Boolean> commandPermissions = new HashMap<>();
 

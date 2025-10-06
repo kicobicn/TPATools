@@ -35,10 +35,10 @@ public class BackHandler {
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        int backPermLevel = ModConfigs.commandPermissions.getOrDefault("back", false) ? 2 : 0;
+
         event.getDispatcher().register(
                 Commands.literal("back")
-                        .requires(source -> source.hasPermission(backPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "back"))
                         .executes(context -> {
                             try {
                                 ServerPlayer player = context.getSource().getPlayerOrException();

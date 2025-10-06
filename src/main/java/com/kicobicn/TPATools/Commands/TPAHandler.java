@@ -4,9 +4,7 @@ import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.ChatFormatting;
-import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.ClickEvent;
@@ -19,7 +17,6 @@ import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.server.ServerLifecycleHooks;
 import com.kicobicn.TPATools.config.ModConfigs;
 
@@ -234,38 +231,13 @@ public class TPAHandler {
         return Component.literal(String.format(translated, stringArgs));
     }
 
-    // Tab补全：/tpatool needop 的 command 参数
-    private static final SuggestionProvider<CommandSourceStack> COMMAND_SUGGESTIONS = (context, builder) -> {
-        return builder.suggest("tpa").suggest("home").suggest("grave").suggest("back").buildFuture();
-    };
-
-    // Tab补全：/tpatool needop 的 enable 参数
-    private static final SuggestionProvider<CommandSourceStack> BOOLEAN_SUGGESTIONS = (context, builder) -> {
-        return builder.suggest("true").suggest("false").buildFuture();
-    };
-
-    // Tab补全：时间参数建议
-    private static final SuggestionProvider<CommandSourceStack> TIME_SUGGESTIONS = (context, builder) -> {
-        builder.suggest("10");
-        builder.suggest("30");
-        builder.suggest("60");
-        builder.suggest("120");
-        builder.suggest("300");
-        return builder.buildFuture();
-    };
-
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         detectAvailableLanguages();
 
-        int tpaPermLevel = commandPermissions.getOrDefault("tpa", false) ? 2 : 0;
-        int homePermLevel = commandPermissions.getOrDefault("home", false) ? 2 : 0;
-        int gravePermLevel = commandPermissions.getOrDefault("grave", false) ? 2 : 0;
-        int backPermLevel = commandPermissions.getOrDefault("back", false) ? 2 : 0;
-
         event.getDispatcher().register(
                 Commands.literal("tpa")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
                                     try {
@@ -286,7 +258,7 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpahere")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
                                     try {
@@ -307,7 +279,7 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpaccept")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .executes(context -> acceptTPARequest(context.getSource().getPlayerOrException(), null))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
@@ -324,7 +296,7 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpadeny")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .executes(context -> denyTPARequest(context.getSource().getPlayerOrException(), null))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
@@ -341,7 +313,7 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpacancel")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .executes(context -> cancelTPARequest(context.getSource().getPlayerOrException(), null))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
@@ -358,13 +330,13 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpatoggle")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .executes(context -> toggleTPA(context.getSource().getPlayerOrException()))
         );
 
         event.getDispatcher().register(
                 Commands.literal("tpalock")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
                                     try {
@@ -380,7 +352,7 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpaunlock")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
                                     try {

@@ -21,7 +21,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.loading.FMLPaths;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.io.IOException;
@@ -289,10 +288,10 @@ public class HomeHandler {
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        int homePermLevel = ModConfigs.commandPermissions.getOrDefault("home", false) ? 2 : 0;
+
         event.getDispatcher().register(
                 Commands.literal("home")
-                        .requires(source -> source.hasPermission(homePermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "home"))
                         .then(Commands.literal("tp")
                                 .then(Commands.argument("name", StringArgumentType.string())
                                         .suggests(ACCESSIBLE_HOME_SUGGESTIONS)
