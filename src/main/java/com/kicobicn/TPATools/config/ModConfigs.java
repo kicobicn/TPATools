@@ -1,29 +1,41 @@
 package com.kicobicn.TPATools.config;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.kicobicn.TPATools.TPATools;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+
 import com.kicobicn.TPATools.Commands.TPAHandler;
 
 public class ModConfigs {
     private static final Logger LOGGER = LogManager.getLogger("TPAtools");
 
     // 配置项定义
+    public static final Map<String, String> translations = new HashMap<>();
+
     public static final ForgeConfigSpec CONFIG;
     public static final ForgeConfigSpec.LongValue COOLDOWN_TIME;
     public static final ForgeConfigSpec.IntValue TIMEOUT_TICKS;
@@ -45,6 +57,15 @@ public class ModConfigs {
             DebugLog.error("Failed to create config directory: {}", e.getMessage());
         }
         return configDir;
+    }
+
+    public static boolean checkCommandPermission(CommandSourceStack source, String command) {
+        boolean needOp = commandPermissions.getOrDefault(command, false);
+        if (needOp) {
+            return source.hasPermission(2); // 需要OP权限
+        } else {
+            return true; // 不需要OP权限，所有玩家都可以使用
+        }
     }
 
     // 命令权限状态
@@ -136,33 +157,91 @@ public class ModConfigs {
         commandPermissions.putIfAbsent("debug", false);
     }
 
+    //lang类
+    private static final Set<String> SUPPORTED_LANGUAGES = Set.of("en_us", "zh_cn");
+
+    public static void loadTranslations(String lang) {
+        translations.clear();
+        String fileName = String.format("%s.json", lang);
+        String modid = TPATools.MODID; // 用你在 TPATools.java 里定义的 MODID 常量
+
+        LOGGER.info("Attempting to load language file for '{}'", lang);
+
+        try {
+            Path candidate = ModList.get()
+                    .getModFileById(modid)
+                    .getFile()
+                    .findResource("assets/" + modid + "/lang/" + fileName);
+            if (candidate != null && Files.exists(candidate)) {
+                try (BufferedReader reader = Files.newBufferedReader(candidate, StandardCharsets.UTF_8)) {
+                    JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
+                    for (String key : json.keySet()) translations.put(key, json.get(key).getAsString());
+                    LOGGER.info("Loaded language from mod file path: assets/{}/lang/{}", modid, fileName);
+                    return;
+                }
+            } else {
+                LOGGER.debug("ModFile.findResource did not return existing path for assets/{}/lang/{}", modid, fileName);
+            }
+        } catch (Exception e) {
+            LOGGER.warn("ModFile lookup failed for assets/{}/lang/{}: {}", modid, fileName, e.getMessage());
+        }
+    }
+
+    public static MutableComponent translateWithFallback(String key, String fallback, Object... args) {
+        String translated = translations.getOrDefault(key, fallback);
+        Object[] stringArgs = new Object[args.length];
+        for (int i = 0; i < args.length; i++) {
+            if (args[i] instanceof Component component) {
+                stringArgs[i] = component.getString();
+            } else {
+                stringArgs[i] = args[i];
+            }
+        }
+        return Component.literal(String.format(translated, stringArgs));
+    }
+
     //注册tpatool管理命令
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
+
         event.getDispatcher().register(
                 Commands.literal("tpatools")
                         .requires(source -> source.hasPermission(2))
                         .then(Commands.literal("setlanguage")
                                 .then(Commands.argument("lang", StringArgumentType.string())
-                                        .suggests(LANGUAGE_SUGGESTIONS)
+                                        .suggests((context, builder) -> {
+                                            for (String lang : SUPPORTED_LANGUAGES) builder.suggest(lang);
+                                            return builder.buildFuture();
+                                        })
                                         .executes(context -> {
                                             String lang = StringArgumentType.getString(context, "lang");
-                                            if (lang.equals("en_us") || lang.equals("zh_cn")) {
-                                                DEFAULT_LANGUAGE.set(lang);
-                                                DEFAULT_LANGUAGE.save();
-                                                TPAHandler.loadTranslations(lang);
-                                                context.getSource().sendSuccess(
-                                                        () -> TPAHandler.translateWithFallback("command.tpatool.setlanguage.success", "Language set to %s.", lang),
-                                                        true
+                                            if (!SUPPORTED_LANGUAGES.contains(lang)) {
+                                                context.getSource().sendFailure(
+                                                        translateWithFallback(
+                                                                "command.tpatool.setlanguage.invalid",
+                                                                "Invalid language. Available: en_us, zh_cn"
+                                                        )
                                                 );
-                                                DebugLog.info("Language switched to {} by {}", lang, context.getSource().getDisplayName().getString());
-                                                return 1;
+                                                return 0;
                                             }
-                                            context.getSource().sendFailure(
-                                                    TPAHandler.translateWithFallback("command.tpatool.setlanguage.invalid", "Invalid language. Use 'en_us' or 'zh_cn'.")
+
+                                            DEFAULT_LANGUAGE.set(lang);
+                                            DEFAULT_LANGUAGE.save();
+                                            loadTranslations(lang);
+
+                                            context.getSource().sendSuccess(
+                                                    () -> translateWithFallback(
+                                                            "command.tpatool.setlanguage.success",
+                                                            "Language set to %s.",
+                                                            lang
+                                                    ),
+                                                    true
                                             );
-                                            return 0;
-                                        })))
+
+                                            LOGGER.info("Language switched to {}", lang);
+                                            return 1;
+                                        })
+                                ))
                         .then(Commands.literal("setmaxhome")
                                 .then(Commands.argument("count", IntegerArgumentType.integer(1))
                                         .executes(context -> {
@@ -170,7 +249,7 @@ public class ModConfigs {
                                             MAX_HOMES.set(count);
                                             MAX_HOMES.save();
                                             context.getSource().sendSuccess(
-                                                    () -> TPAHandler.translateWithFallback("command.tpatool.setmaxhome.success", "Maximum homes set to %s.", count),
+                                                    () -> translateWithFallback("command.tpatool.setmaxhome.success", "Maximum homes set to %s.", count),
                                                     true
                                             );
                                             DebugLog.info("Max homes set to {} by {}", count, context.getSource().getDisplayName().getString());
@@ -187,14 +266,14 @@ public class ModConfigs {
                                                     boolean enable = enableStr.equalsIgnoreCase("true");
                                                     if (!Arrays.asList("tpa", "home", "grave", "back").contains(command)) {
                                                         context.getSource().sendFailure(
-                                                                TPAHandler.translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', or 'back'.")
+                                                                translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', or 'back'.")
                                                         );
                                                         return 0;
                                                     }
                                                     commandPermissions.put(command, enable);
                                                     TPAHandler.saveCommandPermissions();
                                                     context.getSource().sendSuccess(
-                                                            () -> TPAHandler.translateWithFallback(
+                                                            () -> translateWithFallback(
                                                                     enable ? "command.tpatool.needop.success_enabled" : "command.tpatool.needop.success_disabled",
                                                                     enable ? "%s commands now require OP permission." : "%s commands now do not require OP permission.",
                                                                     command
@@ -212,7 +291,7 @@ public class ModConfigs {
                                             COOLDOWN_TIME.set((long) time * 1000); // 转换为毫秒
                                             COOLDOWN_TIME.save();
                                             context.getSource().sendSuccess(
-                                                    () -> TPAHandler.translateWithFallback(
+                                                    () -> translateWithFallback(
                                                             "command.tpatool.tpacdtime.success",
                                                             "TPA cooldown time set to %d seconds.",
                                                             time
@@ -231,7 +310,7 @@ public class ModConfigs {
                                             TIMEOUT_TICKS.set(time * 20); // 转换为ticks (1秒=20ticks)
                                             TIMEOUT_TICKS.save();
                                             context.getSource().sendSuccess(
-                                                    () -> TPAHandler.translateWithFallback(
+                                                    () -> translateWithFallback(
                                                             "command.tpatool.tpawaittime.success",
                                                             "TPA wait time set to %d seconds.",
                                                             time
@@ -252,7 +331,7 @@ public class ModConfigs {
                                             DEBUG_MODE.set(enable);
                                             DEBUG_MODE.save();
                                             context.getSource().sendSuccess(
-                                                    () -> TPAHandler.translateWithFallback(
+                                                    () -> translateWithFallback(
                                                             enable ? "command.tpatool.debug.enabled" : "command.tpatool.debug.disabled",
                                                             enable ? "Debug mode enabled." : "Debug mode disabled."
                                                     ),
@@ -264,7 +343,7 @@ public class ModConfigs {
                                 .executes(context -> {
                                     boolean currentState = DEBUG_MODE.get();
                                     context.getSource().sendSuccess(
-                                            () -> TPAHandler.translateWithFallback(
+                                            () -> translateWithFallback(
                                                     "command.tpatool.debug.status",
                                                     "Debug mode is currently %s.",
                                                     currentState ? "enabled" : "disabled"

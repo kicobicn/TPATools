@@ -35,10 +35,10 @@ public class BackHandler {
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        int backPermLevel = ModConfigs.commandPermissions.getOrDefault("back", false) ? 2 : 0;
+
         event.getDispatcher().register(
                 Commands.literal("back")
-                        .requires(source -> source.hasPermission(backPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "back"))
                         .executes(context -> {
                             try {
                                 ServerPlayer player = context.getSource().getPlayerOrException();
@@ -67,7 +67,7 @@ public class BackHandler {
     private static int teleportBack(ServerPlayer player) {
         PlayerPosition pos = previousPositions.get(player.getUUID());
         if (pos == null) {
-            player.sendSystemMessage(TPAHandler.translateWithFallback(
+            player.sendSystemMessage(ModConfigs.translateWithFallback(
                     "command.tpatool.back.no_position", "No previous position recorded!"
             ));
             return 0;
@@ -75,7 +75,7 @@ public class BackHandler {
         ServerLevel level = player.getServer().getLevel(ResourceKey.create(
                 Registries.DIMENSION, pos.dimension));
         if (level == null) {
-            player.sendSystemMessage(TPAHandler.translateWithFallback(
+            player.sendSystemMessage(ModConfigs.translateWithFallback(
                     "command.tpatool.back.invalid_dimension", "Invalid dimension for previous position!"
             ));
             previousPositions.remove(player.getUUID());
@@ -83,7 +83,7 @@ public class BackHandler {
         }
         recordPosition(player);
         player.teleportTo(level, pos.x, pos.y, pos.z, pos.yRot, pos.xRot);
-        player.sendSystemMessage(TPAHandler.translateWithFallback(
+        player.sendSystemMessage(ModConfigs.translateWithFallback(
                 "command.tpatool.back.success", "Teleported to previous position."
         ));
         ModConfigs.DebugLog.info("Player {} teleported back to dimension={}, x={}, y={}, z={}",

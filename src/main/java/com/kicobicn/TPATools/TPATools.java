@@ -9,7 +9,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
 @Mod(TPATools.MODID)
@@ -19,8 +18,7 @@ public class TPATools {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    public TPATools() {
-        FMLJavaModLoadingContext.get().getModEventBus();
+    public TPATools() {;
         MinecraftForge.EVENT_BUS.register(TPAHandler.class);
         MinecraftForge.EVENT_BUS.register(BackHandler.class);
         MinecraftForge.EVENT_BUS.register(HomeHandler.class);

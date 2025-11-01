@@ -13,18 +13,13 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.loading.FMLPaths;
-import net.minecraftforge.server.ServerLifecycleHooks;
 import com.kicobicn.TPATools.config.ModConfigs;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -35,7 +30,6 @@ import java.util.*;
 import static com.kicobicn.TPATools.config.ModConfigs.*;
 
 public class TPAHandler {
-    private static final Map<String, String> translations = new HashMap<>();
     private static final Map<UUID, List<TPARequest>> requests = new HashMap<>();
     private static final Map<UUID, Long> cooldowns = new HashMap<>();
     private static final Map<UUID, Boolean> toggleStates = new HashMap<>();
@@ -73,64 +67,6 @@ public class TPAHandler {
         saveToggleStates();
         saveLockedPlayers();
         saveCommandPermissions();
-    }
-
-    // 加载翻译
-    public static void loadTranslations(String lang) {
-        translations.clear();
-        ResourceLocation loc = new ResourceLocation("tpatool", "lang/" + lang + ".json");
-        try {
-            MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-            if (server != null) {
-                var resource = server.getResourceManager().getResource(loc).orElseThrow();
-                String jsonContent = new String(resource.open().readAllBytes(), StandardCharsets.UTF_8);
-                Map<String, String> loadedTranslations = GSON.fromJson(jsonContent, new TypeToken<Map<String, String>>(){}.getType());
-                translations.putAll(loadedTranslations);
-                ModConfigs.DebugLog.info("Loaded translations for language: {}", lang);
-            } else {
-                ModConfigs.DebugLog.warn("Server not available, using fallback translations for {}", lang);
-                loadFallbackTranslations();
-            }
-        } catch (IOException e) {
-            ModConfigs.DebugLog.error("Failed to load translations for {}: {}, using fallback", lang, e.getMessage());
-            loadFallbackTranslations();
-        }
-    }
-
-    private static void loadFallbackTranslations() {
-        translations.put("command.tpatool.tpa.self", "You cannot teleport to yourself!");
-        translations.put("command.tpatool.tpa.cooldown", "Please wait for the cooldown (60 seconds)!");
-        translations.put("command.tpatool.tpa.accept", "Accept");
-        translations.put("command.tpatool.tpa.deny", "Deny");
-    }
-
-    private static final Set<String> availableLanguages = new HashSet<>(Set.of("en_us", "zh_cn"));
-
-    public static void detectAvailableLanguages() {
-        availableLanguages.clear();
-        try {
-            MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-            if (server != null) {
-                var resources = server.getResourceManager().listResources("lang", path -> path.getPath().endsWith(".json"));
-                for (var entry : resources.entrySet()) {
-                    ResourceLocation loc = entry.getKey();
-                    // loc: tpatools:lang/en_us.json
-                    String path = loc.getPath();
-                    if (path.startsWith("lang/") && path.endsWith(".json")) {
-                        String langCode = path.substring(5, path.length() - 5); // 去掉 "lang/" 和 ".json"
-                        availableLanguages.add(langCode);
-                    }
-                }
-                if (availableLanguages.isEmpty()) {
-                    ModConfigs.DebugLog.warn("No languages detected, fallback to en_us/zh_cn");
-                    availableLanguages.add("en_us");
-                    availableLanguages.add("zh_cn");
-                }
-                ModConfigs.DebugLog.info("Detected languages: {}", availableLanguages);
-            }
-        } catch (Exception e) {
-            ModConfigs.DebugLog.error("Failed to detect languages: {}", e.getMessage());
-        }
     }
 
     // 加载命令权限状态
@@ -221,19 +157,6 @@ public class TPAHandler {
         }
     }
 
-    public static MutableComponent translateWithFallback(String key, String fallback, Object... args) {
-        String translated = translations.getOrDefault(key, fallback);
-        Object[] stringArgs = new Object[args.length];
-        for (int i = 0; i < args.length; i++) {
-            if (args[i] instanceof Component component) {
-                stringArgs[i] = component.getString();
-            } else {
-                stringArgs[i] = args[i];
-            }
-        }
-        return Component.literal(String.format(translated, stringArgs));
-    }
-
     // Tab补全：/tpatool needop 的 command 参数
     private static final SuggestionProvider<CommandSourceStack> COMMAND_SUGGESTIONS = (context, builder) -> {
         return builder.suggest("tpa").suggest("home").suggest("grave").suggest("back").buildFuture();
@@ -256,16 +179,10 @@ public class TPAHandler {
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        detectAvailableLanguages();
-
-        int tpaPermLevel = commandPermissions.getOrDefault("tpa", false) ? 2 : 0;
-        int homePermLevel = commandPermissions.getOrDefault("home", false) ? 2 : 0;
-        int gravePermLevel = commandPermissions.getOrDefault("grave", false) ? 2 : 0;
-        int backPermLevel = commandPermissions.getOrDefault("back", false) ? 2 : 0;
 
         event.getDispatcher().register(
                 Commands.literal("tpa")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
                                     try {
@@ -286,7 +203,7 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpahere")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
                                     try {
@@ -307,7 +224,7 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpaccept")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .executes(context -> acceptTPARequest(context.getSource().getPlayerOrException(), null))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
@@ -324,7 +241,7 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpadeny")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .executes(context -> denyTPARequest(context.getSource().getPlayerOrException(), null))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
@@ -341,7 +258,7 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpacancel")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .executes(context -> cancelTPARequest(context.getSource().getPlayerOrException(), null))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
@@ -358,13 +275,13 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpatoggle")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .executes(context -> toggleTPA(context.getSource().getPlayerOrException()))
         );
 
         event.getDispatcher().register(
                 Commands.literal("tpalock")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
                                     try {
@@ -380,7 +297,7 @@ public class TPAHandler {
 
         event.getDispatcher().register(
                 Commands.literal("tpaunlock")
-                        .requires(source -> source.hasPermission(tpaPermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "tpa"))
                         .then(Commands.argument("player", EntityArgument.player())
                                 .executes(context -> {
                                     try {

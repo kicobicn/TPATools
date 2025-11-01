@@ -71,7 +71,7 @@ public class ChatHandler {
                 // 使用 Title 数据包来实现居中大标题提示的效果
                 ClientboundSetTitleTextPacket titlePacket =
                         new ClientboundSetTitleTextPacket(
-                                TPAHandler.translateWithFallback(
+                                ModConfigs.translateWithFallback(
                                         "command.tpatool.chat.mention",
                                         "%s mentioned you",
                                         sender.getName()
@@ -96,34 +96,6 @@ public class ChatHandler {
         }
 
         return processedMessage;
-    }
-
-    /**
-     * 在Component中替换文本
-     */
-    private MutableComponent replaceTextInComponent(Component component, String searchText, Component replacement) {
-        MutableComponent result = Component.literal("");
-        String text = component.getString();
-        int index = text.toLowerCase().indexOf(searchText.toLowerCase());
-
-        if (index == -1) {
-            return Component.literal(text);
-        }
-
-        // 添加前面的文本
-        if (index > 0) {
-            result.append(Component.literal(text.substring(0, index)));
-        }
-
-        // 添加替换的组件
-        result.append(replacement);
-
-        // 添加后面的文本
-        if (index + searchText.length() < text.length()) {
-            result.append(Component.literal(text.substring(index + searchText.length())));
-        }
-
-        return result;
     }
 
     /**

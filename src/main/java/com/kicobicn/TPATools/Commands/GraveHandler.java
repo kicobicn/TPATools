@@ -13,7 +13,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -58,10 +57,10 @@ public class GraveHandler {
     //注册指令
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        int gravePermLevel = ModConfigs.commandPermissions.getOrDefault("grave", false) ? 2 : 0;
+
         event.getDispatcher().register(
                 Commands.literal("grave")
-                        .requires(source -> source.hasPermission(gravePermLevel))
+                        .requires(source -> ModConfigs.checkCommandPermission(source, "grave"))
                         .executes(context -> {
                             try {
                                 ServerPlayer player = context.getSource().getPlayerOrException();
@@ -95,7 +94,7 @@ public class GraveHandler {
     private static int teleportToGrave(ServerPlayer player) {
         BackHandler.PlayerPosition pos = gravePositions.get(player.getUUID());
         if (pos == null) {
-            player.sendSystemMessage(TPAHandler.translateWithFallback(
+            player.sendSystemMessage(ModConfigs.translateWithFallback(
                     "command.tpatool.grave.no_position", "No previous death position recorded!"
             ));
             return 0;
@@ -103,7 +102,7 @@ public class GraveHandler {
         ServerLevel level = player.getServer().getLevel(ResourceKey.create(
                 Registries.DIMENSION, pos.dimension));
         if (level == null) {
-            player.sendSystemMessage(TPAHandler.translateWithFallback(
+            player.sendSystemMessage(ModConfigs.translateWithFallback(
                     "command.tpatool.grave.invalid_dimension", "Invalid dimension for death position!"
             ));
             gravePositions.remove(player.getUUID());
@@ -112,7 +111,7 @@ public class GraveHandler {
         }
         BackHandler.recordPosition(player);
         player.teleportTo(level, pos.x, pos.y, pos.z, pos.yRot, pos.xRot);
-        player.sendSystemMessage(TPAHandler.translateWithFallback(
+        player.sendSystemMessage(ModConfigs.translateWithFallback(
                 "command.tpatool.grave.success", "Teleported to last death position."
         ));
         ModConfigs.DebugLog.info("Player {} teleported to grave at dimension={}, x={}, y={}, z={}",
