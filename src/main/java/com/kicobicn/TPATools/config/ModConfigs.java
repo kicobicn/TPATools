@@ -80,10 +80,6 @@ public class ModConfigs {
         return builder.suggest("true").suggest("false").buildFuture();
     };
 
-    private static final SuggestionProvider<CommandSourceStack> LANGUAGE_SUGGESTIONS = (context, builder) -> {
-        return builder.suggest("en_us").suggest("zh_cn").buildFuture();
-    };
-
     private static final SuggestionProvider<CommandSourceStack> TIME_SUGGESTIONS = (context, builder) -> {
         builder.suggest("10");
         builder.suggest("30");
@@ -177,7 +173,6 @@ public class ModConfigs {
                     JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
                     for (String key : json.keySet()) translations.put(key, json.get(key).getAsString());
                     LOGGER.info("Loaded language from mod file path: assets/{}/lang/{}", modid, fileName);
-                    return;
                 }
             } else {
                 LOGGER.debug("ModFile.findResource did not return existing path for assets/{}/lang/{}", modid, fileName);

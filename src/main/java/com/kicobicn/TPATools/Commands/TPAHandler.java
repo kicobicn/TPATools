@@ -4,9 +4,7 @@ import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.ChatFormatting;
-import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.ClickEvent;
@@ -157,26 +155,6 @@ public class TPAHandler {
         }
     }
 
-    // Tab补全：/tpatool needop 的 command 参数
-    private static final SuggestionProvider<CommandSourceStack> COMMAND_SUGGESTIONS = (context, builder) -> {
-        return builder.suggest("tpa").suggest("home").suggest("grave").suggest("back").buildFuture();
-    };
-
-    // Tab补全：/tpatool needop 的 enable 参数
-    private static final SuggestionProvider<CommandSourceStack> BOOLEAN_SUGGESTIONS = (context, builder) -> {
-        return builder.suggest("true").suggest("false").buildFuture();
-    };
-
-    // Tab补全：时间参数建议
-    private static final SuggestionProvider<CommandSourceStack> TIME_SUGGESTIONS = (context, builder) -> {
-        builder.suggest("10");
-        builder.suggest("30");
-        builder.suggest("60");
-        builder.suggest("120");
-        builder.suggest("300");
-        return builder.buildFuture();
-    };
-
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
 
@@ -310,11 +288,6 @@ public class TPAHandler {
                                     }
                                 }))
         );
-    }
-
-    private static boolean canSendRequest(ServerPlayer sender) {
-        Long lastRequest = cooldowns.get(sender.getUUID());
-        return lastRequest == null || System.currentTimeMillis() - lastRequest >= COOLDOWN_TIME.get();
     }
 
     private static int sendTPARequest(ServerPlayer sender, ServerPlayer target, boolean isTPHere) {
