@@ -1,4 +1,4 @@
-package com.kicobicn.TPATools.Commands;
+package com.kicobicn.TPATools.chat;
 
 import com.kicobicn.TPATools.config.ModConfigs;
 import net.minecraft.ChatFormatting;

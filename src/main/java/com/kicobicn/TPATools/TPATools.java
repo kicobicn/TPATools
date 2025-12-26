@@ -1,22 +1,19 @@
 package com.kicobicn.TPATools;
 
 import com.kicobicn.TPATools.Commands.*;
+import com.kicobicn.TPATools.chat.ChatHandler;
 import com.kicobicn.TPATools.config.ModConfigs;
-import com.mojang.logging.LogUtils;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
-import org.slf4j.Logger;
 
 @Mod(TPATools.MODID)
 public class TPATools {
 
     public static final String MODID = "tpatools";
-
-    private static final Logger LOGGER = LogUtils.getLogger();
 
     public TPATools() {;
         MinecraftForge.EVENT_BUS.register(TPAHandler.class);
