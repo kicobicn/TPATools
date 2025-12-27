@@ -1,0 +1,1032 @@
+package com.kicobicn.TPATools.chat;
+
+import com.kicobicn.TPATools.Commands.HomeHandler;
+import com.kicobicn.TPATools.Commands.TPAHandler;
+import com.kicobicn.TPATools.config.ModConfigs;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.*;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class ModChatMenus {
+
+    // 存储玩家的UI状态
+    private static final Map<UUID, UIState> playerUIStates = new ConcurrentHashMap<>();
+
+    // UI状态类
+    private static class UIState {
+        String currentMenu;
+        List<String> menuData;
+
+        public UIState(String currentMenu, List<String> menuData) {
+            this.currentMenu = currentMenu;
+            this.menuData = menuData;
+        }
+    }
+
+    // 菜单数据结构
+    private static class MenuData {
+        String title;
+        List<MenuItem> items;
+        int totalPages;
+        int currentPage;
+
+        public MenuData(String title, List<MenuItem> items, int currentPage, int totalPages) {
+            this.title = title;
+            this.items = items;
+            this.currentPage = currentPage;
+            this.totalPages = totalPages;
+        }
+    }
+
+    // 菜单项
+    private static class MenuItem {
+        String name;
+        String hoverText;
+        String command;
+        ChatFormatting color;
+        boolean isButton;
+
+        public MenuItem(String name, String hoverText, String command, ChatFormatting color, boolean isButton) {
+            this.name = name;
+            this.hoverText = hoverText;
+            this.command = command;
+            this.color = color;
+            this.isButton = isButton;
+        }
+    }
+
+    @SubscribeEvent
+    public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            // 初始化玩家UI状态
+            playerUIStates.put(player.getUUID(), new UIState("home", new ArrayList<>()));
+        }
+    }
+
+    @SubscribeEvent
+    public void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            // 清理玩家UI状态
+            playerUIStates.remove(player.getUUID());
+        }
+    }
+
+    public static class HomeMenus {
+
+        public static void HomeMenu(CommandSourceStack source) {
+            try {
+                ServerPlayer player = source.getPlayerOrException();
+                showHomeMenu(player, 0);
+            } catch (Exception e) {
+                ModConfigs.DebugLog.error("Error showing home menu: {}", e.getMessage());
+            }
+        }
+
+        private static void showHomeMenu(ServerPlayer player, int page) {
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - Home ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.home.title.main", "        -Home menu -\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal("\n"));
+
+                    // 按钮
+                    menu.append(createI18nButton("menu.tpatools.home.button.sethome",
+                                    "menu.tpatools.home.hover.sethome",
+                                    "/home set ",
+                                    ChatFormatting.GREEN,
+                                    false))
+                            .append(Component.literal("\n"));
+            
+                    menu.append(createI18nButton("menu.tpatools.home.button.managehome",
+                                    "menu.tpatools.home.hover.managehome",
+                                    "/home list",
+                                    ChatFormatting.AQUA,
+                                    true))
+                            .append(Component.literal(" "))
+                            .append(createI18nButton("menu.tpatools.home.button.visitother",
+                                    "menu.tpatools.home.hover.visitother",
+                                    "/home otherlist",
+                                    ChatFormatting.AQUA,
+                                    true))
+                            .append(Component.literal("\n"));
+            
+                    menu.append(createI18nButton("menu.tpatools.home.button.sharedouthomes",
+                                    "menu.tpatools.home.hover.sharedouthomes",
+                                    "/home sharelist out",
+                                    ChatFormatting.AQUA,
+                                    true))
+                            .append(Component.literal(" "))
+                            .append(createI18nButton("menu.tpatools.home.button.sharedinhomes",
+                                    "menu.tpatools.home.hover.sharedinhomes",
+                                    "/home sharelist in",
+                                    ChatFormatting.AQUA,
+                                    true))
+                            .append(Component.literal("\n"));
+            // 分割线
+            menu.append(Component.literal("==============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showOwnHomesList(ServerPlayer player, int page) {
+            Map<String, HomeHandler.Home> homes = HomeHandler.playerHomes.get(player.getUUID());
+            if (homes == null || homes.isEmpty()) {
+                player.sendSystemMessage(TPAHandler.translateWithFallback(
+                        "command.tpatool.home.list_empty", "You have no homes set."));
+                return;
+            }
+
+            List<String> homeNames = new ArrayList<>(homes.keySet());
+            int pageSize = 5;
+            int totalPages = (int) Math.ceil((double) homeNames.size() / pageSize);
+            page = Math.max(0, Math.min(page, totalPages - 1));
+
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - Home/list ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.home.title.homelist", "        - Your Current Homes -\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal("\n"));
+
+            // 显示当前页的家
+            int startIndex = page * pageSize;
+            int endIndex = Math.min(startIndex + pageSize, homeNames.size());
+
+            for (int i = startIndex; i < endIndex; i++) {
+                String homeName = homeNames.get(i);
+                HomeHandler.Home home = homes.get(homeName);
+
+                menu.append(Component.literal("- " + homeName + "\n")
+                        .withStyle(ChatFormatting.WHITE));
+
+                String position = String.format("%s (x=%.2f, y=%.2f, z=%.2f)",
+                        home.position.dimension, home.position.x, home.position.y, home.position.z);
+                menu.append(Component.literal("  " + position + "\n")
+                        .withStyle(ChatFormatting.GRAY));
+
+                                // 按钮行
+                                MutableComponent buttons = Component.literal(" ");
+                                buttons.append(createI18nButton("menu.tpatools.home.button.teleport",
+                                                "menu.tpatools.home.hover.teleport",
+                                                "/home tp " + homeName,
+                                                ChatFormatting.GREEN,
+                                                true))
+                                        .append(Component.literal(" "));
+                                buttons.append(createI18nButton("menu.tpatools.home.button.rename",
+                                                "menu.tpatools.home.hover.rename",
+                                                "/home rename " + homeName + " ",
+                                                ChatFormatting.YELLOW,
+                                                false))
+                                        .append(Component.literal(" "));
+
+                                // 公开/私密按钮
+                                Map<String, HomeHandler.PublicHomeInfo> publicHomes = HomeHandler.publicHomesByOwner.get(player.getUUID().toString());
+                                boolean isPublic = publicHomes != null && publicHomes.containsKey(homeName);
+                                String publicCommand = isPublic ? "/home private " + homeName : "/home public " + homeName;
+                                String publicText = isPublic ? "menu.tpatools.home.button.setprivate" : "menu.tpatools.home.button.setpublic";
+                                String publicHover = isPublic ? "menu.tpatools.home.hover.setprivate" : "menu.tpatools.home.hover.setpublic";
+                                ChatFormatting publicColor = isPublic ? ChatFormatting.RED : ChatFormatting.GREEN;
+
+                                buttons.append(createI18nButton(publicText,
+                                                publicHover,
+                                                publicCommand,
+                                                publicColor,
+                                                true))
+                                        .append(Component.literal(" "));
+
+                                // 分享按钮
+                                int sharedCount = home.sharedPlayers.size();
+                                buttons.append(createI18nButtonWithHoverArgs("menu.tpatools.home.button.share",
+                                                "menu.tpatools.home.hover.share",
+                                                "/home share " + homeName + " ",
+                                                ChatFormatting.AQUA,
+                                                false,
+                                                new Object[]{sharedCount},
+                                                new Object[]{sharedCount}))
+                                        .append(Component.literal(" "));
+
+                                buttons.append(createI18nButton("menu.tpatools.home.button.invite",
+                                                "menu.tpatools.home.hover.invite",
+                                                "/home invite invite " + homeName + " ",
+                                                ChatFormatting.LIGHT_PURPLE,
+                                                false))
+                                        .append(Component.literal(" "));
+
+                                buttons.append(createI18nButton("menu.tpatools.home.button.delete",
+                                                "menu.tpatools.home.hover.delete",
+                                                "/home remove " + homeName,
+                                                ChatFormatting.RED,
+                                                true))
+                                        .append(Component.literal(" "));
+                menu.append(buttons).append(Component.literal("\n"));
+            }
+
+            // 分页系统
+            if (totalPages > 1) {
+                menu.append(Component.literal("=============================\n")
+                        .withStyle(ChatFormatting.GOLD));
+
+                MutableComponent pagination = Component.literal(" ");
+                pagination.append(createI18nButton("menu.tpatools.home.button.previouspage",
+                                "menu.tpatools.home.hover.previouspage",
+                                "/home list page " + Math.max(0, page - 1),
+                                ChatFormatting.GRAY,
+                                true))
+                        .append(Component.literal(" - " + (page + 1) + "/" + totalPages + " - "))
+                        .append(createI18nButton("menu.tpatools.home.button.nextpage",
+                                "menu.tpatools.home.hover.nextpage",
+                                "/home list page " + Math.min(totalPages - 1, page + 1),
+                                ChatFormatting.GRAY,
+                                true));
+
+                menu.append(pagination).append(Component.literal("\n"));
+            } else {
+                menu.append(Component.literal("=============================\n")
+                        .withStyle(ChatFormatting.GOLD));
+            }
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showSharedOutList(ServerPlayer player, int page) {
+            Map<String, HomeHandler.Home> homes = HomeHandler.playerHomes.get(player.getUUID());
+            if (homes == null || homes.isEmpty()) {
+                player.sendSystemMessage(TPAHandler.translateWithFallback(
+                        "command.tpatool.sharelist.out_empty", "You have not shared any homes."));
+                return;
+            }
+
+            List<String> sharedHomeNames = new ArrayList<>();
+            for (Map.Entry<String, HomeHandler.Home> entry : homes.entrySet()) {
+                if (!entry.getValue().sharedPlayers.isEmpty()) {
+                    sharedHomeNames.add(entry.getKey());
+                }
+            }
+
+            if (sharedHomeNames.isEmpty()) {
+                player.sendSystemMessage(TPAHandler.translateWithFallback(
+                        "command.tpatool.sharelist.out_empty", "You have not shared any homes."));
+                return;
+            }
+
+            int pageSize = 5;
+            int totalPages = (int) Math.ceil((double) sharedHomeNames.size() / pageSize);
+            page = Math.max(0, Math.min(page, totalPages - 1));
+
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - Home/sharelist/out =====\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.home.title.sharelist_out", "        - Homes You've Shared -\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal("\n"));
+
+            // 显示当前页的分享家
+            int startIndex = page * pageSize;
+            int endIndex = Math.min(startIndex + pageSize, sharedHomeNames.size());
+
+            for (int i = startIndex; i < endIndex; i++) {
+                String homeName = sharedHomeNames.get(i);
+                HomeHandler.Home home = homes.get(homeName);
+
+                menu.append(Component.literal("- " + homeName + "\n")
+                        .withStyle(ChatFormatting.WHITE));
+
+                String position = String.format("%s (x=%.2f, y=%.2f, z=%.2f)",
+                        home.position.dimension, home.position.x, home.position.y, home.position.z);
+                menu.append(Component.literal("  " + position + "\n")
+                        .withStyle(ChatFormatting.GRAY));
+
+                // 显示分享的玩家
+                List<String> sharedPlayerNames = new ArrayList<>();
+                for (UUID sharedUUID : home.sharedPlayers) {
+                    String playerName = player.getServer().getProfileCache().get(sharedUUID)
+                            .map(profile -> profile.getName()).orElse("Unknown");
+                    sharedPlayerNames.add(playerName);
+                }
+                menu.append(Component.literal("  已分享给：" + String.join(" ", sharedPlayerNames) + "\n")
+                        .withStyle(ChatFormatting.GRAY));
+
+                // 按钮行
+                MutableComponent buttons = Component.literal("  ");
+                buttons.append(createI18nButton("menu.tpatools.home.button.cancelallshare",
+                                "menu.tpatools.home.hover.cancelallshare",
+                                "/home unshare " + homeName,
+                                ChatFormatting.RED,
+                                true))
+                        .append(Component.literal(" "));
+
+                buttons.append(createI18nButton("menu.tpatools.home.button.cancelplayershare",
+                                "menu.tpatools.home.hover.cancelplayershare",
+                                "/home unshare " + homeName + " ",
+                                ChatFormatting.YELLOW,
+                                false))
+                        .append(Component.literal("\n\n"));
+
+                menu.append(buttons);
+            }
+
+            // 分页系统
+            if (totalPages > 1) {
+                menu.append(Component.literal("=============================\n")
+                        .withStyle(ChatFormatting.GOLD));
+
+                MutableComponent pagination = Component.literal(" ");
+                pagination.append(createI18nButton("menu.tpatools.home.button.previouspage",
+                                "menu.tpatools.home.hover.previouspage",
+                                "/home sharelist out page " + Math.max(0, page - 1),
+                                ChatFormatting.GRAY,
+                                true))
+                        .append(Component.literal(" - " + (page + 1) + "/" + totalPages + " - "))
+                        .append(createI18nButton("menu.tpatools.home.button.nextpage",
+                                "menu.tpatools.home.hover.nextpage",
+                                "/home sharelist out page " + Math.min(totalPages - 1, page + 1),
+                                ChatFormatting.GRAY,
+                                true));
+
+                menu.append(pagination).append(Component.literal("\n"));
+            } else {
+                menu.append(Component.literal("=============================\n")
+                        .withStyle(ChatFormatting.GOLD));
+            }
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showPublicHomesList(ServerPlayer player, int page) {
+            if (HomeHandler.publicHomesByOwner.isEmpty()) {
+                player.sendSystemMessage(TPAHandler.translateWithFallback(
+                        "command.tpatool.home.otherlist_empty", "No public or shared homes available."));
+                return;
+            }
+
+            List<HomeHandler.PublicHomeInfo> publicHomes = new ArrayList<>();
+            for (Map.Entry<String, Map<String, HomeHandler.PublicHomeInfo>> ownerEntry : HomeHandler.publicHomesByOwner.entrySet()) {
+                for (HomeHandler.PublicHomeInfo info : ownerEntry.getValue().values()) {
+                    publicHomes.add(info);
+                }
+            }
+
+            int pageSize = 5;
+            int totalPages = (int) Math.ceil((double) publicHomes.size() / pageSize);
+            page = Math.max(0, Math.min(page, totalPages - 1));
+
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - Home/otherlist ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.home.title.otherlist", "        - Public Homes Available -\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal("\n"));
+
+            // 显示当前页的公开家
+            int startIndex = page * pageSize;
+            int endIndex = Math.min(startIndex + pageSize, publicHomes.size());
+
+            for (int i = startIndex; i < endIndex; i++) {
+                HomeHandler.PublicHomeInfo info = publicHomes.get(i);
+                Map<String, HomeHandler.Home> ownerHomes = HomeHandler.playerHomes.get(info.ownerUUID);
+
+                if (ownerHomes != null && ownerHomes.containsKey(info.homeName)) {
+                    HomeHandler.Home home = ownerHomes.get(info.homeName);
+
+                    menu.append(Component.literal("- " + info.homeName + "，拥有者 " + info.ownerName + "\n")
+                            .withStyle(ChatFormatting.WHITE));
+
+                    String position = String.format("%s (x=%.2f, y=%.2f, z=%.2f)",
+                            home.position.dimension, home.position.x, home.position.y, home.position.z);
+                    menu.append(Component.literal("  " + position + "\n")
+                            .withStyle(ChatFormatting.GRAY));
+
+                    // 传送按钮
+                    menu.append(Component.literal("  "))
+                            .append(createI18nButton("menu.tpatools.home.button.teleport",
+                                    "menu.tpatools.home.hover.teleport",
+                                    "/home otherhome " + info.ownerName + ":" + info.homeName,
+                                    ChatFormatting.GREEN,
+                                    true))
+                            .append(Component.literal("\n\n"));
+                }
+            }
+
+            // 分页系统
+            if (totalPages > 1) {
+                menu.append(Component.literal("=============================\n")
+                        .withStyle(ChatFormatting.GOLD));
+
+                MutableComponent pagination = Component.literal(" ");
+                pagination.append(createI18nButton("menu.tpatools.home.button.previouspage",
+                                "menu.tpatools.home.hover.previouspage",
+                                "/home otherlist page " + Math.max(0, page - 1),
+                                ChatFormatting.GRAY,
+                                true))
+                        .append(Component.literal(" - " + (page + 1) + "/" + totalPages + " - "))
+                        .append(createI18nButton("menu.tpatools.home.button.nextpage",
+                                "menu.tpatools.home.hover.nextpage",
+                                "/home otherlist page " + Math.min(totalPages - 1, page + 1),
+                                ChatFormatting.GRAY,
+                                true));
+
+                menu.append(pagination).append(Component.literal("\n"));
+            } else {
+                menu.append(Component.literal("=============================\n")
+                        .withStyle(ChatFormatting.GOLD));
+            }
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showSharedInList(ServerPlayer player, int page) {
+            List<HomeHandler.Home> sharedHomes = new ArrayList<>();
+            List<String> ownerNames = new ArrayList<>();
+
+            for (Map.Entry<UUID, Map<String, HomeHandler.Home>> entry : HomeHandler.playerHomes.entrySet()) {
+                UUID ownerUUID = entry.getKey();
+                if (!ownerUUID.equals(player.getUUID())) {
+                    for (Map.Entry<String, HomeHandler.Home> homeEntry : entry.getValue().entrySet()) {
+                        if (homeEntry.getValue().sharedPlayers.contains(player.getUUID())) {
+                            sharedHomes.add(homeEntry.getValue());
+                            String ownerName = player.getServer().getProfileCache().get(ownerUUID)
+                                    .map(profile -> profile.getName()).orElse("Unknown");
+                            ownerNames.add(ownerName + ":" + homeEntry.getKey());
+                        }
+                    }
+                }
+            }
+
+            if (sharedHomes.isEmpty()) {
+                player.sendSystemMessage(TPAHandler.translateWithFallback(
+                        "command.tpatool.sharelist.in_empty", "No homes are shared with you."));
+                return;
+            }
+
+            int pageSize = 5;
+            int totalPages = (int) Math.ceil((double) sharedHomes.size() / pageSize);
+            page = Math.max(0, Math.min(page, totalPages - 1));
+
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - Home/sharelist/in ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.home.title.sharelist_in", "        - Homes Shared With You -\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal("\n"));
+
+            // 显示当前页的分享家
+            int startIndex = page * pageSize;
+            int endIndex = Math.min(startIndex + pageSize, sharedHomes.size());
+
+            for (int i = startIndex; i < endIndex; i++) {
+                HomeHandler.Home home = sharedHomes.get(i);
+                String ownerHomeName = ownerNames.get(i);
+
+                String[] parts = ownerHomeName.split(":", 2);
+                String ownerName = parts[0];
+                String homeName = parts[1];
+
+                menu.append(Component.literal("- " + homeName + " ,拥有者:" + ownerName + "\n")
+                        .withStyle(ChatFormatting.WHITE));
+
+                String position = String.format("%s (x=%.2f, y=%.2f, z=%.2f)",
+                        home.position.dimension, home.position.x, home.position.y, home.position.z);
+                menu.append(Component.literal("  " + position + "\n")
+                        .withStyle(ChatFormatting.GRAY));
+
+                // 传送按钮
+                menu.append(Component.literal("  "))
+                        .append(createI18nButton("menu.tpatools.home.button.teleport",
+                                "menu.tpatools.home.hover.teleport",
+                                "/home otherhome " + ownerHomeName,
+                                ChatFormatting.GREEN,
+                                true))
+                        .append(Component.literal("\n\n"));
+            }
+
+            // 分页系统
+            if (totalPages > 1) {
+                menu.append(Component.literal("=============================\n")
+                        .withStyle(ChatFormatting.GOLD));
+
+                MutableComponent pagination = Component.literal(" ");
+                pagination.append(createI18nButton("menu.tpatools.home.button.previouspage",
+                                "menu.tpatools.home.hover.previouspage",
+                                "/home sharelist in page " + Math.max(0, page - 1),
+                                ChatFormatting.GRAY,
+                                true))
+                        .append(Component.literal(" - " + (page + 1) + "/" + totalPages + " - "))
+                        .append(createI18nButton("menu.tpatools.home.button.nextpage",
+                                "menu.tpatools.home.hover.nextpage",
+                                "/home sharelist in page " + Math.min(totalPages - 1, page + 1),
+                                ChatFormatting.GRAY,
+                                true));
+
+                menu.append(pagination).append(Component.literal("\n"));
+            } else {
+                menu.append(Component.literal("=============================\n")
+                        .withStyle(ChatFormatting.GOLD));
+            }
+
+            player.sendSystemMessage(menu);
+        }
+    }
+
+    public static class ConfigMenus {
+
+        public static void showSettingsMenu(ServerPlayer player) {
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - setting ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.title.main", "TPATools Control Panel\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(Component.literal("\n"));
+
+                    // 按钮
+                    menu.append(createI18nButton("menu.tpatools.config.button.configmenu",
+                                    "menu.tpatools.config.hover.configmenu",
+                                    "/tpatools configs",
+                                    ChatFormatting.AQUA,
+                                    true))
+                            .append(Component.literal(" "));
+            
+                    menu.append(createI18nButton("menu.tpatools.config.button.debugmode",
+                                    "menu.tpatools.config.hover.debugmode",
+                                    "/tpatools debug",
+                                    ChatFormatting.YELLOW,
+                                    true))
+                            .append(Component.literal("\n"));
+            // 分割线
+            menu.append(Component.literal("=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showConfigsMenu(ServerPlayer player) {
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - setting ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.branch.setlanguage", "- Set Language (setlanguage)\n")
+                            .withStyle(ChatFormatting.WHITE));
+
+            ChatFormatting langColor = "zh_cn".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ?
+                    ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setlanguage_1",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage zh_cn",
+                            langColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            langColor = "en_us".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ?
+                    ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setlanguage_2",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage en_us",
+                            langColor,
+                            true))
+                    .append(Component.literal("\n\n"));
+
+            menu.append(TPAHandler.translateWithFallback("menu.tpatools.config.branch.setmaxhome", "- Set Maximum Number of Homes (setmaxhome)\n")
+                    .withStyle(ChatFormatting.WHITE));
+
+            int maxHomes = ModConfigs.MAX_HOMES.get();
+            ChatFormatting color2 = maxHomes == 2 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setmaxhome_2",
+                            "menu.tpatools.config.hover.setmaxhome",
+                            "/tpatools configs setmaxhome 2",
+                            color2,
+                            true))
+                    .append(Component.literal(" "));
+
+            color2 = maxHomes == 3 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setmaxhome_3",
+                            "menu.tpatools.config.hover.setmaxhome",
+                            "/tpatools configs setmaxhome 3",
+                            color2,
+                            true))
+                    .append(Component.literal(" "));
+
+            color2 = maxHomes == 5 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setmaxhome_5",
+                            "menu.tpatools.config.hover.sethomemax",
+                            "/tpatools configs setmaxhome 5",
+                            color2,
+                            true))
+                    .append(Component.literal(" "));
+
+            menu.append(createI18nButton("menu.tpatools.config.button.setmaxhome",
+                            "menu.tpatools.config.hover.setmaxhome",
+                            "/tpatools configs setmaxhome ",
+                            ChatFormatting.GRAY,
+                            false))
+                    .append(Component.literal("\n\n"));
+
+            menu.append(TPAHandler.translateWithFallback("menu.tpatools.config.branch.needop", "- Configure Whether Specific Commands Require OP (needop)\n")
+                    .withStyle(ChatFormatting.WHITE));
+
+            ChatFormatting tpaColor = ModConfigs.commandPermissions.getOrDefault("tpa", false) ?
+                    ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.needop_tpa",
+                            "menu.tpatools.config.hover.needop_tpa",
+                            "/tpatools configs needop tpa " + (!ModConfigs.commandPermissions.getOrDefault("tpa", false)),
+                            tpaColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            ChatFormatting homeColor = ModConfigs.commandPermissions.getOrDefault("home", false) ?
+                    ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.needop_home",
+                            "menu.tpatools.config.hover.needop_home",
+                            "/tpatools configs needop home " + (!ModConfigs.commandPermissions.getOrDefault("home", false)),
+                            homeColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            ChatFormatting graveColor = ModConfigs.commandPermissions.getOrDefault("grave", false) ?
+                    ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.needop_grave",
+                            "menu.tpatools.config.hover.needop_grave",
+                            "/tpatools configs needop grave " + (!ModConfigs.commandPermissions.getOrDefault("grave", false)),
+                            graveColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            ChatFormatting backColor = ModConfigs.commandPermissions.getOrDefault("back", false) ?
+                    ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.needop_back",
+                            "menu.tpatools.config.hover.needop_back",
+                            "/tpatools configs needop back " + (!ModConfigs.commandPermissions.getOrDefault("back", false)),
+                            backColor,
+                            true))
+                    .append(Component.literal("\n\n"));
+
+            menu.append(TPAHandler.translateWithFallback("menu.tpatools.config.branch.tpawaittime", "- TPA Timeout Duration (tpawaittime)\n")
+                    .withStyle(ChatFormatting.WHITE));
+
+            int waitTime = ModConfigs.WAIT_SECONDS.get();
+            ChatFormatting waitColor = waitTime == 30 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.tpawaittime_30",
+                            "menu.tpatools.home.hover.tpawaittime",
+                            "/tpatools configs tpawaittime 30",
+                            waitColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            waitColor = waitTime == 60 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.tpawaittime_60",
+                            "menu.tpatools.home.hover.tpawaittime",
+                            "/tpatools configs tpawaittime 60",
+                            waitColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            menu.append(createI18nButton("menu.tpatools.config.button.tpawaittime",
+                            "menu.tpatools.config.hover.tpawaittime",
+                            "/tpatools configs tpawaittime ",
+                            ChatFormatting.GRAY,
+                            false))
+                    .append(Component.literal("\n\n"));
+
+            menu.append(TPAHandler.translateWithFallback("menu.tpatools.config.branch.tpacdtime", "- TPA Cooldown Duration (tpacdtime)\n")
+                    .withStyle(ChatFormatting.WHITE));
+
+            int cdTime = (int) (ModConfigs.COOLDOWN_TIME.get() / 1000);
+            ChatFormatting cdColor = cdTime == 0 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.tpacdtime_0",
+                            "menu.tpatools.home.hover.tpacdtime",
+                            "/tpatools configs tpacdtime 0",
+                            cdColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            cdColor = cdTime == 10 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.tpacdtime_10",
+                            "menu.tpatools.home.hover.tpacdtime",
+                            "/tpatools configs tpacdtime 10",
+                            cdColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            cdColor = cdTime == 30 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.tpacdtime_30",
+                            "menu.tpatools.home.hover.tpacdtime",
+                            "/tpatools configs tpacdtime 30",
+                            cdColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            menu.append(createI18nButton("menu.tpatools.config.button.tpacdtime",
+                            "menu.tpatools.config.hover.tpacdtime",
+                            "/tpatools configs tpacdtime ",
+                            ChatFormatting.GRAY,
+                            false))
+                    .append(Component.literal("\n\n"));
+
+            menu.append(TPAHandler.translateWithFallback("menu.tpatools.config.branch.debug", "- Debug Mode (debug)\n")
+                    .withStyle(ChatFormatting.WHITE));
+
+            boolean debugEnabled = ModConfigs.isDebugEnabled();
+            ChatFormatting debugColor = debugEnabled ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton(debugEnabled ? "menu.tpatools.config.button.debugvalue.true" : "menu.tpatools.config.button.debugvalue.false",
+                            "menu.tpatools.config.hover.debugvalue",
+                            "/tpatools debug " + (!debugEnabled),
+                            debugColor,
+                            true))
+                    .append(Component.literal("\n"));
+
+            // 分割线
+            menu.append(Component.literal("=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showSetLanguageMenu(ServerPlayer player) {
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - setting/setlanguage ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.tips.setlanguage", "This setting is used to modify the hot-reload language feature of the TPATools mod.\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.default.setlanguage","- Default value: zh_cn (currently {})\n", ModConfigs.DEFAULT_LANGUAGE.get())
+                            .withStyle(ChatFormatting.GRAY));
+
+            // 按钮
+            menu.append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setlanguage_1",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage zh_cn",
+                            "zh_cn".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setlanguage_2",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage en_us",
+                            "en_us".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true));
+
+            // 分割线
+            menu.append(Component.literal("\n=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showSetMaxHomeMenu(ServerPlayer player) {
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - setting/setmaxhome ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.tips.setmaxhome", "This setting controls the maximum number of homes allowed for all players on the server.\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.default.setmaxhome", "- Default: 2 (currently: {})\n", ModConfigs.MAX_HOMES.get())
+                            .withStyle(ChatFormatting.GRAY));
+
+            // 按钮
+            menu.append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setmaxhome_2",
+                            "menu.tpatools.config.hover.setmaxhome",
+                            "/tpatools configs setmaxhome 2",
+                            2 == ModConfigs.MAX_HOMES.get() ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setmaxhome_3",
+                            "menu.tpatools.config.hover.setmaxhome",
+                            "/tpatools configs setmaxhome 3",
+                            3 == ModConfigs.MAX_HOMES.get() ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setmaxhome_5",
+                            "menu.tpatools.config.hover.setmaxhome",
+                            "/tpatools configs setmaxhome 5",
+                            5 == ModConfigs.MAX_HOMES.get() ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setmaxhome",
+                            "menu.tpatools.config.hover.setmaxhome",
+                            "/tpatools configs setmaxhome ",
+                            ChatFormatting.GRAY,
+                            false));
+
+            // 分割线
+            menu.append(Component.literal("\n=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showNeedOpMenu(ServerPlayer player) {
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - setting/needop ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.tips.needop", "Used to specify whether certain commands require OP permission.\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.default.needop", "- Default: tpa:false home:false grave:false back:false\n (currently set to tpa:{}, home:{}, grave:{}, back:{})\n" ,
+                                    ModConfigs.commandPermissions.getOrDefault("tpa", false),
+                                    ModConfigs.commandPermissions.getOrDefault("home", false),
+                                     ModConfigs.commandPermissions.getOrDefault("grave", false),
+                                     ModConfigs.commandPermissions.getOrDefault("back", false))
+                            .withStyle(ChatFormatting.GRAY));
+
+            // 按钮
+            menu.append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.needop_tpa",
+                            "menu.tpatools.config.hover.needop_tpa",
+                            "/tpatools configs needop tpa " + (!ModConfigs.commandPermissions.getOrDefault("tpa", false)),
+                            ModConfigs.commandPermissions.getOrDefault("tpa", false) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.needop_home",
+                            "menu.tpatools.config.hover.needop_home",
+                            "/tpatools configs needop home " + (!ModConfigs.commandPermissions.getOrDefault("home", false)),
+                            ModConfigs.commandPermissions.getOrDefault("home", false) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.needop_grave",
+                            "menu.tpatools.config.hover.needop_grave",
+                            "/tpatools configs needop grave " + (!ModConfigs.commandPermissions.getOrDefault("grave", false)),
+                            ModConfigs.commandPermissions.getOrDefault("grave", false) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.needop_back",
+                            "menu.tpatools.config.hover.needop_back",
+                            "/tpatools configs needop back " + (!ModConfigs.commandPermissions.getOrDefault("back", false)),
+                            ModConfigs.commandPermissions.getOrDefault("back", false) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true));
+
+            // 分割线
+            menu.append(Component.literal("\n=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showTPAWaitTimeMenu(ServerPlayer player) {
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - setting/tpawaittime ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.tips.tpawaittime", "Sets the timeout duration for TPA requests.\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.default.tpawaittime", "- Default: 30 (unit: seconds) (currently set to {} seconds)\n", ModConfigs.WAIT_SECONDS.get())
+                            .withStyle(ChatFormatting.GRAY));
+
+            // 按钮
+            menu.append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.tpawaittime_30",
+                            "menu.tpatools.config.hover.tpawaittime",
+                            "/tpatools configs tpawaittime 30",
+                            30 == ModConfigs.WAIT_SECONDS.get() ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.tpawaittime_60",
+                            "menu.tpatools.config.hover.tpawaittime",
+                            "/tpatools configs tpawaittime 60",
+                            60 == ModConfigs.WAIT_SECONDS.get() ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.tpawaittime",
+                            "menu.tpatools.config.button.tpawaittime",
+                            "/tpatools configs tpawaittime ",
+                            ChatFormatting.GRAY,
+                            false));
+
+            // 分割线
+            menu.append(Component.literal("\n=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showTPACDTimeMenu(ServerPlayer player) {
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - setting/tpacdtime ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.tips.tpacdtime", "Sets the cooldown duration between TPA requests.\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.default.tpacdtime", "- Default: 0 (unit: seconds) (currently set to {} seconds)\n", (ModConfigs.COOLDOWN_TIME.get() / 1000) ))
+                            .withStyle(ChatFormatting.GRAY);
+
+            // 按钮
+            menu.append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.tpacdtime_0",
+                            "menu.tpatools.config.hover.tpacdtime",
+                            "/tpatools configs tpacdtime 0",
+                            0 == (ModConfigs.COOLDOWN_TIME.get() / 1000) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.tpacdtime_10",
+                            "menu.tpatools.config.hover.tpacdtime",
+                            "/tpatools configs tpacdtime 10",
+                            10 == (ModConfigs.COOLDOWN_TIME.get() / 1000) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.tpacdtime_30",
+                            "menu.tpatools.config.hover.tpacdtime",
+                            "/tpatools configs tpacdtime 30",
+                            30 == (ModConfigs.COOLDOWN_TIME.get() / 1000) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.tpacdtime",
+                            "menu.tpatools.config.hover.tpacdtime",
+                            "/tpatools configs tpacdtime ",
+                            ChatFormatting.GRAY,
+                            false));
+
+            // 分割线
+            menu.append(Component.literal("\n=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showDebugMenu(ServerPlayer player) {
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - setting/debug ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.tips.debug", "Used to enable debug mode.\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(TPAHandler.translateWithFallback("menu.tpatools.config.tips.debug_2", "Important note: This mode only toggles logging for this mod on the server. If you are an administrator but cannot view logs, please enable this cautiously.\n")
+                            .withStyle(ChatFormatting.RED))
+                                                .append(TPAHandler.translateWithFallback("menu.tpatools.config.default.debug", "- Default: false (currently set to {})\n", ModConfigs.isDebugEnabled()))
+                    .withStyle(ChatFormatting.GRAY);
+
+            // 按钮
+            boolean debugEnabled = ModConfigs.isDebugEnabled();
+            menu.append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.debugvalue.false",
+                            "menu.tpatools.config.hover.debugvalue.false",
+                            "/tpatools debug false",
+                            !debugEnabled ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.debugvalue.true",
+                            "menu.tpatools.config.hover.debugvalue.true",
+                            "/tpatools debug true",
+                            debugEnabled ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true));
+
+            // 分割线
+            menu.append(Component.literal("\n=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+    }
+
+    public static MutableComponent createButton(String text, String hoverText, String command, ChatFormatting color, boolean isClickable) {
+        MutableComponent button = Component.literal(text)
+                .withStyle(style -> {
+                    style = style.withColor(color);
+                    if (isClickable) {
+                        style = style.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command));
+                    } else {
+                        style = style.withClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, command));
+                    }
+                    style = style.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                            Component.literal(hoverText)));
+                    return style;
+                });
+        return button;
+    }
+
+    public static MutableComponent createI18nButton(String translationKey, String hoverTranslationKey, String command, ChatFormatting color, boolean isClickable, Object... args) {
+        MutableComponent textComponent = TPAHandler.translateWithFallback(translationKey, translationKey, args);
+        String hoverText = TPAHandler.translateWithFallback(hoverTranslationKey, hoverTranslationKey, args).getString();
+        return createButton(textComponent.getString(), hoverText, command, color, isClickable);
+    }
+
+    public static MutableComponent createI18nButtonWithHoverArgs(String translationKey, String hoverTranslationKey, String command, ChatFormatting color, boolean isClickable, Object[] args, Object[] hoverArgs) {
+        MutableComponent textComponent = TPAHandler.translateWithFallback(translationKey, translationKey, args);
+        String hoverText = TPAHandler.translateWithFallback(hoverTranslationKey, hoverTranslationKey, hoverArgs).getString();
+        return createButton(textComponent.getString(), hoverText, command, color, isClickable);
+    }
+}

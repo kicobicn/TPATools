@@ -1,10 +1,12 @@
 package com.kicobicn.TPATools.config;
 
+import com.kicobicn.TPATools.chat.ModChatMenus;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -32,6 +34,8 @@ public class ModConfigs {
     public static final ForgeConfigSpec.IntValue COOLDOWN_SECONDS;
     public static final ForgeConfigSpec.IntValue WAIT_SECONDS;
     public static final ForgeConfigSpec.BooleanValue DEBUG_MODE;
+    public static final ForgeConfigSpec.ConfigValue<Integer> HOME_INVITE_COOLDOWN;
+    public static final ForgeConfigSpec.ConfigValue<Integer> HOME_INVITE_TIMEOUT;
 
     //配置路径检查
     public static Path getConfigDir() {
@@ -103,6 +107,15 @@ public class ModConfigs {
                 .define("debugMode", false); // 默认关闭
         builder.pop();
 
+        HOME_INVITE_COOLDOWN = builder
+                .comment("Cooldown time in seconds between home invites")
+                .defineInRange("homeInviteCooldown", 0, 0, 300);
+
+        HOME_INVITE_TIMEOUT = builder
+                .comment("Timeout time in seconds for home invites")
+                .defineInRange("homeInviteTimeout", 30, 1, 300);
+
+
         CONFIG = builder.build();
     }
 
@@ -151,137 +164,220 @@ public class ModConfigs {
         event.getDispatcher().register(
                 Commands.literal("tpatools")
                         .requires(source -> source.hasPermission(2))
-                        .then(Commands.literal("setlanguage")
-                                .then(Commands.argument("lang", StringArgumentType.string())
-                                        .suggests(LANGUAGE_SUGGESTIONS)
+                        .executes(context -> {  // 无参数时显示设置菜单
+                            ServerPlayer player = context.getSource().getPlayerOrException();
+                            ModChatMenus.ConfigMenus.showSettingsMenu(player);
+                            return 1;
+                        })
+                        .then(Commands.literal("configs")
+                                .executes(context -> {
+                                    ServerPlayer player = context.getSource().getPlayerOrException();
+                                    ModChatMenus.ConfigMenus.showConfigsMenu(player);
+                                    return 1;
+                                })
+                                .then(Commands.literal("setlanguage")
                                         .executes(context -> {
-                                            String lang = StringArgumentType.getString(context, "lang");
-                                            if (lang.equals("en_us") || lang.equals("zh_cn")) {
-                                                DEFAULT_LANGUAGE.set(lang);
-                                                DEFAULT_LANGUAGE.save();
-                                                TPAHandler.loadTranslations(lang);
-                                                context.getSource().sendSuccess(
-                                                        () -> TPAHandler.translateWithFallback("command.tpatool.setlanguage.success", "Language set to %s.", lang),
-                                                        true
-                                                );
-                                                DebugLog.info("Language switched to {} by {}", lang, context.getSource().getDisplayName().getString());
-                                                return 1;
-                                            }
-                                            context.getSource().sendFailure(
-                                                    TPAHandler.translateWithFallback("command.tpatool.setlanguage.invalid", "Invalid language. Use 'en_us' or 'zh_cn'.")
-                                            );
-                                            return 0;
-                                        })))
-                        .then(Commands.literal("setmaxhome")
-                                .then(Commands.argument("count", IntegerArgumentType.integer(1))
-                                        .executes(context -> {
-                                            int count = IntegerArgumentType.getInteger(context, "count");
-                                            MAX_HOMES.set(count);
-                                            MAX_HOMES.save();
-                                            context.getSource().sendSuccess(
-                                                    () -> TPAHandler.translateWithFallback("command.tpatool.setmaxhome.success", "Maximum homes set to %s.", count),
-                                                    true
-                                            );
-                                            DebugLog.info("Max homes set to {} by {}", count, context.getSource().getDisplayName().getString());
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            ModChatMenus.ConfigMenus.showSetLanguageMenu(player);
                                             return 1;
-                                        })))
-                        .then(Commands.literal("needop")
-                                .then(Commands.argument("command", StringArgumentType.string())
-                                        .suggests(COMMAND_SUGGESTIONS)
-                                        .then(Commands.argument("enable", StringArgumentType.string())
-                                                .suggests(BOOLEAN_SUGGESTIONS)
+                                        })
+                                        .then(Commands.argument("lang", StringArgumentType.string())
+                                                .suggests(LANGUAGE_SUGGESTIONS)
                                                 .executes(context -> {
-                                                    String command = StringArgumentType.getString(context, "command");
-                                                    String enableStr = StringArgumentType.getString(context, "enable");
-                                                    boolean enable = enableStr.equalsIgnoreCase("true");
-                                                    if (!Arrays.asList("tpa", "home", "grave", "back").contains(command)) {
-                                                        context.getSource().sendFailure(
-                                                                TPAHandler.translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', or 'back'.")
+                                                    String lang = StringArgumentType.getString(context, "lang");
+                                                    if (lang.equals("en_us") || lang.equals("zh_cn")) {
+                                                        DEFAULT_LANGUAGE.set(lang);
+                                                        DEFAULT_LANGUAGE.save();
+                                                        TPAHandler.loadTranslations(lang);
+                                                        context.getSource().sendSuccess(
+                                                                () -> TPAHandler.translateWithFallback("command.tpatool.setlanguage.success", "Language set to %s.", lang),
+                                                                true
                                                         );
-                                                        return 0;
+                                                        DebugLog.info("Language switched to {} by {}", lang, context.getSource().getDisplayName().getString());
+                                                        return 1;
                                                     }
-                                                    commandPermissions.put(command, enable);
-                                                    TPAHandler.saveCommandPermissions();
+                                                    context.getSource().sendFailure(
+                                                            TPAHandler.translateWithFallback("command.tpatool.setlanguage.invalid", "Invalid language. Use 'en_us' or 'zh_cn'.")
+                                                    );
+                                                    return 0;
+                                                })))
+                                .then(Commands.literal("setmaxhome")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            ModChatMenus.ConfigMenus.showSetMaxHomeMenu(player);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("count", IntegerArgumentType.integer(1))
+                                                .executes(context -> {
+                                                    int count = IntegerArgumentType.getInteger(context, "count");
+                                                    MAX_HOMES.set(count);
+                                                    MAX_HOMES.save();
+                                                    context.getSource().sendSuccess(
+                                                            () -> TPAHandler.translateWithFallback("command.tpatool.setmaxhome.success", "Maximum homes set to %s.", count),
+                                                            true
+                                                    );
+                                                    DebugLog.info("Max homes set to {} by {}", count, context.getSource().getDisplayName().getString());
+                                                    return 1;
+                                                })))
+                                .then(Commands.literal("needop")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            ModChatMenus.ConfigMenus.showNeedOpMenu(player);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("command", StringArgumentType.string())
+                                                .suggests(COMMAND_SUGGESTIONS)
+                                                .then(Commands.argument("enable", StringArgumentType.string())
+                                                        .suggests(BOOLEAN_SUGGESTIONS)
+                                                        .executes(context -> {
+                                                            String command = StringArgumentType.getString(context, "command");
+                                                            String enableStr = StringArgumentType.getString(context, "enable");
+                                                            boolean enable = enableStr.equalsIgnoreCase("true");
+                                                            if (!Arrays.asList("tpa", "home", "grave", "back").contains(command)) {
+                                                                context.getSource().sendFailure(
+                                                                        TPAHandler.translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', or 'back'.")
+                                                                );
+                                                                return 0;
+                                                            }
+                                                            commandPermissions.put(command, enable);
+                                                            TPAHandler.saveCommandPermissions();
+                                                            context.getSource().sendSuccess(
+                                                                    () -> TPAHandler.translateWithFallback(
+                                                                            enable ? "command.tpatool.needop.success_enabled" : "command.tpatool.needop.success_disabled",
+                                                                            enable ? "%s commands now require OP permission." : "%s commands now do not require OP permission.",
+                                                                            command
+                                                                    ),
+                                                                    true
+                                                            );
+                                                            DebugLog.info("{} commands set to {} OP by {}", command, enable ? "require" : "not require", context.getSource().getDisplayName().getString());
+                                                            return 1;
+                                                        }))))
+                                .then(Commands.literal("tpacdtime")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            ModChatMenus.ConfigMenus.showTPACDTimeMenu(player);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("time", IntegerArgumentType.integer(0))
+                                                .suggests(TIME_SUGGESTIONS)
+                                                .executes(context -> {
+                                                    int time = IntegerArgumentType.getInteger(context, "time");
+                                                    COOLDOWN_TIME.set((long) time * 1000); // 转换为毫秒
+                                                    COOLDOWN_TIME.save();
                                                     context.getSource().sendSuccess(
                                                             () -> TPAHandler.translateWithFallback(
-                                                                    enable ? "command.tpatool.needop.success_enabled" : "command.tpatool.needop.success_disabled",
-                                                                    enable ? "%s commands now require OP permission." : "%s commands now do not require OP permission.",
-                                                                    command
+                                                                    "command.tpatool.tpacdtime.success",
+                                                                    "TPA cooldown time set to %d seconds.",
+                                                                    time
                                                             ),
                                                             true
                                                     );
-                                                    DebugLog.info("{} commands set to {} OP by {}", command, enable ? "require" : "not require", context.getSource().getDisplayName().getString());
+                                                    DebugLog.info("TPA cooldown time set to {} seconds by {}",
+                                                            time, context.getSource().getDisplayName().getString());
+                                                    return 1;
+                                                })))
+                                .then(Commands.literal("tpawaittime")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            ModChatMenus.ConfigMenus.showTPAWaitTimeMenu(player);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("time", IntegerArgumentType.integer(0))
+                                                .suggests(TIME_SUGGESTIONS)
+                                                .executes(context -> {
+                                                    int time = IntegerArgumentType.getInteger(context, "time");
+                                                    TIMEOUT_TICKS.set(time * 20); // 转换为ticks (1秒=20ticks)
+                                                    TIMEOUT_TICKS.save();
+                                                    context.getSource().sendSuccess(
+                                                            () -> TPAHandler.translateWithFallback(
+                                                                    "command.tpatool.tpawaittime.success",
+                                                                    "TPA wait time set to %d seconds.",
+                                                                    time
+                                                            ),
+                                                            true
+                                                    );
+                                                    DebugLog.info("TPA wait time set to {} seconds by {}",
+                                                            time, context.getSource().getDisplayName().getString());
+                                                    return 1;
+                                                                                                }))
+                                                                                )
+                                .then(Commands.literal("homeinviteovertime")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            context.getSource().sendSuccess(() -> TPAHandler.translateWithFallback(
+                                                    "command.tpatool.setinfo.homeinviteovertime",
+                                                    "Current home invite overtime is %d seconds.",
+                                                    HOME_INVITE_TIMEOUT.get()), true);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("time", IntegerArgumentType.integer(1))
+                                                .suggests(TIME_SUGGESTIONS)
+                                                .executes(context -> {
+                                                    int time = IntegerArgumentType.getInteger(context, "time");
+                                                    HOME_INVITE_TIMEOUT.set(time);
+                                                    HOME_INVITE_TIMEOUT.save();
+                                                    context.getSource().sendSuccess(
+                                                            () -> TPAHandler.translateWithFallback(
+                                                                    "command.tpatool.home.inviteovertime.success",
+                                                                    "Home invite timeout time set to %d seconds.",
+                                                                    time
+                                                            ),
+                                                            true
+                                                    );
+                                                    DebugLog.info("Home invite timeout time set to {} seconds by {}",
+                                                            time, context.getSource().getDisplayName().getString());
+                                                    return 1;
+                                                })))
+                                .then(Commands.literal("homeinvitecdtime")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            context.getSource().sendSuccess(() -> TPAHandler.translateWithFallback(
+                                                    "command.tpatool.setinfo.homeinvitecdtime",
+                                                    "Current home invite cooldown time is %d seconds.",
+                                                    HOME_INVITE_COOLDOWN.get()), true);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("time", IntegerArgumentType.integer(0))
+                                                .suggests(TIME_SUGGESTIONS)
+                                                .executes(context -> {
+                                                    int time = IntegerArgumentType.getInteger(context, "time");
+                                                    HOME_INVITE_COOLDOWN.set(time);
+                                                    HOME_INVITE_COOLDOWN.save();
+                                                    context.getSource().sendSuccess(
+                                                            () -> TPAHandler.translateWithFallback(
+                                                                    "command.tpatool.home.invitecdtime.success",
+                                                                    "Home invite cooldown time set to %d seconds.",
+                                                                    time
+                                                            ),
+                                                            true
+                                                    );
+                                                    DebugLog.info("Home invite cooldown time set to {} seconds by {}",
+                                                            time, context.getSource().getDisplayName().getString());
                                                     return 1;
                                                 }))))
-                        .then(Commands.literal("tpacdtime")
-                                .then(Commands.argument("time", IntegerArgumentType.integer(0))
-                                        .suggests(TIME_SUGGESTIONS)
-                                        .executes(context -> {
-                                            int time = IntegerArgumentType.getInteger(context, "time");
-                                            COOLDOWN_TIME.set((long) time * 1000); // 转换为毫秒
-                                            COOLDOWN_TIME.save();
-                                            context.getSource().sendSuccess(
-                                                    () -> TPAHandler.translateWithFallback(
-                                                            "command.tpatool.tpacdtime.success",
-                                                            "TPA cooldown time set to %d seconds.",
-                                                            time
-                                                    ),
-                                                    true
-                                            );
-                                            DebugLog.info("TPA cooldown time set to {} seconds by {}",
-                                                    time, context.getSource().getDisplayName().getString());
-                                            return 1;
-                                        })))
-                        .then(Commands.literal("tpawaittime")
-                                .then(Commands.argument("time", IntegerArgumentType.integer(0))
-                                        .suggests(TIME_SUGGESTIONS)
-                                        .executes(context -> {
-                                            int time = IntegerArgumentType.getInteger(context, "time");
-                                            TIMEOUT_TICKS.set(time * 20); // 转换为ticks (1秒=20ticks)
-                                            TIMEOUT_TICKS.save();
-                                            context.getSource().sendSuccess(
-                                                    () -> TPAHandler.translateWithFallback(
-                                                            "command.tpatool.tpawaittime.success",
-                                                            "TPA wait time set to %d seconds.",
-                                                            time
-                                                    ),
-                                                    true
-                                            );
-                                            DebugLog.info("TPA wait time set to {} seconds by {}",
-                                                    time, context.getSource().getDisplayName().getString());
-                                            return 1;
-                                        }))
-                        )
                         .then(Commands.literal("debug")
-                                .then(Commands.argument("enable", StringArgumentType.string())
-                                        .suggests(BOOLEAN_SUGGESTIONS)
-                                        .executes(context -> {
-                                            String enableStr = StringArgumentType.getString(context, "enable");
-                                            boolean enable = enableStr.equalsIgnoreCase("true");
-                                            DEBUG_MODE.set(enable);
-                                            DEBUG_MODE.save();
-                                            context.getSource().sendSuccess(
-                                                    () -> TPAHandler.translateWithFallback(
-                                                            enable ? "command.tpatool.debug.enabled" : "command.tpatool.debug.disabled",
-                                                            enable ? "Debug mode enabled." : "Debug mode disabled."
-                                                    ),
-                                                    true
-                                            );
-                                            DebugLog.info("Debug mode {} by {}", enable ? "enabled" : "disabled", context.getSource().getDisplayName().getString());
-                                            return 1;
-                                        }))
+                        .executes(context -> {
+                            ServerPlayer player = context.getSource().getPlayerOrException();
+                            ModChatMenus.ConfigMenus.showDebugMenu(player);
+                            return 1;
+                        })
+                        .then(Commands.argument("enable", StringArgumentType.string())
+                                .suggests(BOOLEAN_SUGGESTIONS)
                                 .executes(context -> {
-                                    boolean currentState = DEBUG_MODE.get();
+                                    String enableStr = StringArgumentType.getString(context, "enable");
+                                    boolean enable = enableStr.equalsIgnoreCase("true");
+                                    DEBUG_MODE.set(enable);
+                                    DEBUG_MODE.save();
                                     context.getSource().sendSuccess(
                                             () -> TPAHandler.translateWithFallback(
-                                                    "command.tpatool.debug.status",
-                                                    "Debug mode is currently %s.",
-                                                    currentState ? "enabled" : "disabled"
+                                                    enable ? "command.tpatool.debug.enabled" : "command.tpatool.debug.disabled",
+                                                    enable ? "Debug mode enabled." : "Debug mode disabled."
                                             ),
                                             true
                                     );
+                                    DebugLog.info("Debug mode {} by {}", enable ? "enabled" : "disabled", context.getSource().getDisplayName().getString());
                                     return 1;
-                                }))
+                                })))
         );
     }
 }

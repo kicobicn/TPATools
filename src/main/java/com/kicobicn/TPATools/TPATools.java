@@ -1,6 +1,7 @@
 package com.kicobicn.TPATools;
 
 import com.kicobicn.TPATools.Commands.*;
+import com.kicobicn.TPATools.chat.ChatHandler;
 import com.kicobicn.TPATools.config.ModConfigs;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.common.MinecraftForge;

@@ -367,11 +367,6 @@ public class TPAHandler {
         );
     }
 
-    private static boolean canSendRequest(ServerPlayer sender) {
-        Long lastRequest = cooldowns.get(sender.getUUID());
-        return lastRequest == null || System.currentTimeMillis() - lastRequest >= COOLDOWN_TIME.get();
-    }
-
     private static int sendTPARequest(ServerPlayer sender, ServerPlayer target, boolean isTPHere) {
         if (sender == target) {
             sender.sendSystemMessage(translateWithFallback("command.tpatool.tpa.self", "You cannot teleport to yourself!"));

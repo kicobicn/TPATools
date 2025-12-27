@@ -1,5 +1,6 @@
-package com.kicobicn.TPATools.Commands;
+package com.kicobicn.TPATools.chat;
 
+import com.kicobicn.TPATools.Commands.TPAHandler;
 import com.kicobicn.TPATools.config.ModConfigs;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.*;
