@@ -1,6 +1,7 @@
 package com.kicobicn.TPATools.config;
 
 import com.kicobicn.TPATools.chat.ModChatMenus;
+import com.kicobicn.TPATools.util.ModUtils;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
@@ -36,6 +37,21 @@ public class ModConfigs {
     public static final ForgeConfigSpec.BooleanValue DEBUG_MODE;
     public static final ForgeConfigSpec.ConfigValue<Integer> HOME_INVITE_COOLDOWN;
     public static final ForgeConfigSpec.ConfigValue<Integer> HOME_INVITE_TIMEOUT;
+    public static final ForgeConfigSpec.ConfigValue<Boolean> ALLOW_TELEPORT_RIDE_ENTITY;
+
+    public static final ForgeConfigSpec.ConfigValue<String> DATABASE_TYPE;
+    public static final ForgeConfigSpec.ConfigValue<String> MYSQL_HOST;
+    public static final ForgeConfigSpec.ConfigValue<Integer> MYSQL_PORT;
+    public static final ForgeConfigSpec.ConfigValue<String> MYSQL_DATABASE;
+    public static final ForgeConfigSpec.ConfigValue<String> MYSQL_USERNAME;
+    public static final ForgeConfigSpec.ConfigValue<String> MYSQL_PASSWORD;
+
+    public static final ForgeConfigSpec.ConfigValue<Integer> RTP_SCOPE;
+    public static final ForgeConfigSpec.ConfigValue<Integer> RTP_COOLDOWN_TIME;
+    public static final ForgeConfigSpec.ConfigValue<Integer> RTP_MAX_ATTEMPTS;
+    public static final ForgeConfigSpec.ConfigValue<Integer> RTP_MIN_Y;
+    public static final ForgeConfigSpec.ConfigValue<Integer> RTP_MAX_Y;
+
 
     //配置路径检查
     public static Path getConfigDir() {
@@ -65,7 +81,7 @@ public class ModConfigs {
 
     // Tab补全提供器
     private static final SuggestionProvider<CommandSourceStack> COMMAND_SUGGESTIONS = (context, builder) -> {
-        return builder.suggest("tpa").suggest("home").suggest("grave").suggest("back").buildFuture();
+        return builder.suggest("tpa").suggest("home").suggest("grave").suggest("back").suggest("rtp").buildFuture();
     };
 
     private static final SuggestionProvider<CommandSourceStack> BOOLEAN_SUGGESTIONS = (context, builder) -> {
@@ -74,6 +90,14 @@ public class ModConfigs {
 
     private static final SuggestionProvider<CommandSourceStack> LANGUAGE_SUGGESTIONS = (context, builder) -> {
         return builder.suggest("en_us").suggest("zh_cn").buildFuture();
+    };
+
+    private static final SuggestionProvider<CommandSourceStack> RTP_SCOPE_SUGGESTIONS = (context, builder) -> {
+        builder.suggest("10000");
+        builder.suggest("20000");
+        builder.suggest("50000");
+        builder.suggest("100000");
+        return builder.buildFuture();
     };
 
     private static final SuggestionProvider<CommandSourceStack> TIME_SUGGESTIONS = (context, builder) -> {
@@ -115,6 +139,38 @@ public class ModConfigs {
                 .comment("Timeout time in seconds for home invites")
                 .defineInRange("homeInviteTimeout", 30, 1, 300);
 
+        builder.push("teleport");
+        ALLOW_TELEPORT_RIDE_ENTITY = builder
+                .comment("Allow teleporting ridden entities with players")
+                .define("allowTeleportRideEntity", false);
+
+        builder.push("database");
+        DATABASE_TYPE = builder.comment("Storage type: 'json' or 'mysql'")
+                .define("type", "json");
+        MYSQL_HOST = builder.comment("MySQL server host")
+                .define("host", "localhost");
+        MYSQL_PORT = builder.comment("MySQL server port")
+                .defineInRange("port", 3306, 1, 65535);
+        MYSQL_DATABASE = builder.comment("MySQL database name")
+                .define("database", "tpatools");
+        MYSQL_USERNAME = builder.comment("MySQL username")
+                .define("username", "root");
+        MYSQL_PASSWORD = builder.comment("MySQL password")
+                .define("password", "");
+        builder.pop();
+
+        builder.push("rtp");
+        RTP_SCOPE = builder.comment("RTP teleport range in blocks (default: 100000)")
+                .defineInRange("scope", 100000, 1000, 1000000);
+        RTP_COOLDOWN_TIME = builder.comment("RTP cooldown time in seconds (default: 30)")
+                .defineInRange("cooldown_time", 30, 0, 3600);
+        RTP_MAX_ATTEMPTS = builder.comment("Maximum attempts to find a safe location (default: 50)")
+                .defineInRange("max_attempts", 50, 1, 200);
+        RTP_MIN_Y = builder.comment("Minimum Y level for RTP (default: -64)")
+                .defineInRange("min_y", -64, -64, 320);
+        RTP_MAX_Y = builder.comment("Maximum Y level for RTP (default: 320)")
+                .defineInRange("max_y", 320, -64, 320);
+        builder.pop();
 
         CONFIG = builder.build();
     }
@@ -155,6 +211,7 @@ public class ModConfigs {
         commandPermissions.putIfAbsent("home", false);
         commandPermissions.putIfAbsent("grave", false);
         commandPermissions.putIfAbsent("back", false);
+        commandPermissions.putIfAbsent("rtp", false);
         commandPermissions.putIfAbsent("debug", false);
     }
 
@@ -163,13 +220,13 @@ public class ModConfigs {
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         event.getDispatcher().register(
                 Commands.literal("tpatools")
-                        .requires(source -> source.hasPermission(2))
                         .executes(context -> {  // 无参数时显示设置菜单
                             ServerPlayer player = context.getSource().getPlayerOrException();
                             ModChatMenus.ConfigMenus.showSettingsMenu(player);
                             return 1;
                         })
                         .then(Commands.literal("configs")
+                                .requires(source -> source.hasPermission(2))
                                 .executes(context -> {
                                     ServerPlayer player = context.getSource().getPlayerOrException();
                                     ModChatMenus.ConfigMenus.showConfigsMenu(player);
@@ -188,16 +245,16 @@ public class ModConfigs {
                                                     if (lang.equals("en_us") || lang.equals("zh_cn")) {
                                                         DEFAULT_LANGUAGE.set(lang);
                                                         DEFAULT_LANGUAGE.save();
-                                                        TPAHandler.loadTranslations(lang);
+                                                        ModUtils.loadTranslations(lang);
                                                         context.getSource().sendSuccess(
-                                                                () -> TPAHandler.translateWithFallback("command.tpatool.setlanguage.success", "Language set to %s.", lang),
+                                                                () -> ModUtils.translateWithFallback("command.tpatool.setlanguage.success", "Language set to %s.", lang),
                                                                 true
                                                         );
                                                         DebugLog.info("Language switched to {} by {}", lang, context.getSource().getDisplayName().getString());
                                                         return 1;
                                                     }
                                                     context.getSource().sendFailure(
-                                                            TPAHandler.translateWithFallback("command.tpatool.setlanguage.invalid", "Invalid language. Use 'en_us' or 'zh_cn'.")
+                                                            ModUtils.translateWithFallback("command.tpatool.setlanguage.invalid", "Invalid language. Use 'en_us' or 'zh_cn'.")
                                                     );
                                                     return 0;
                                                 })))
@@ -213,7 +270,7 @@ public class ModConfigs {
                                                     MAX_HOMES.set(count);
                                                     MAX_HOMES.save();
                                                     context.getSource().sendSuccess(
-                                                            () -> TPAHandler.translateWithFallback("command.tpatool.setmaxhome.success", "Maximum homes set to %s.", count),
+                                                            () -> ModUtils.translateWithFallback("command.tpatool.setmaxhome.success", "Maximum homes set to %s.", count),
                                                             true
                                                     );
                                                     DebugLog.info("Max homes set to {} by {}", count, context.getSource().getDisplayName().getString());
@@ -235,14 +292,14 @@ public class ModConfigs {
                                                             boolean enable = enableStr.equalsIgnoreCase("true");
                                                             if (!Arrays.asList("tpa", "home", "grave", "back").contains(command)) {
                                                                 context.getSource().sendFailure(
-                                                                        TPAHandler.translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', or 'back'.")
+                                                                        ModUtils.translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', or 'back'.")
                                                                 );
                                                                 return 0;
                                                             }
                                                             commandPermissions.put(command, enable);
                                                             TPAHandler.saveCommandPermissions();
                                                             context.getSource().sendSuccess(
-                                                                    () -> TPAHandler.translateWithFallback(
+                                                                    () -> ModUtils.translateWithFallback(
                                                                             enable ? "command.tpatool.needop.success_enabled" : "command.tpatool.needop.success_disabled",
                                                                             enable ? "%s commands now require OP permission." : "%s commands now do not require OP permission.",
                                                                             command
@@ -265,7 +322,7 @@ public class ModConfigs {
                                                     COOLDOWN_TIME.set((long) time * 1000); // 转换为毫秒
                                                     COOLDOWN_TIME.save();
                                                     context.getSource().sendSuccess(
-                                                            () -> TPAHandler.translateWithFallback(
+                                                            () -> ModUtils.translateWithFallback(
                                                                     "command.tpatool.tpacdtime.success",
                                                                     "TPA cooldown time set to %d seconds.",
                                                                     time
@@ -289,7 +346,7 @@ public class ModConfigs {
                                                     TIMEOUT_TICKS.set(time * 20); // 转换为ticks (1秒=20ticks)
                                                     TIMEOUT_TICKS.save();
                                                     context.getSource().sendSuccess(
-                                                            () -> TPAHandler.translateWithFallback(
+                                                            () -> ModUtils.translateWithFallback(
                                                                     "command.tpatool.tpawaittime.success",
                                                                     "TPA wait time set to %d seconds.",
                                                                     time
@@ -304,10 +361,7 @@ public class ModConfigs {
                                 .then(Commands.literal("homeinviteovertime")
                                         .executes(context -> {
                                             ServerPlayer player = context.getSource().getPlayerOrException();
-                                            context.getSource().sendSuccess(() -> TPAHandler.translateWithFallback(
-                                                    "command.tpatool.setinfo.homeinviteovertime",
-                                                    "Current home invite overtime is %d seconds.",
-                                                    HOME_INVITE_TIMEOUT.get()), true);
+                                            ModChatMenus.ConfigMenus.showHomeInviteOverTimeMenu(player);
                                             return 1;
                                         })
                                         .then(Commands.argument("time", IntegerArgumentType.integer(1))
@@ -317,7 +371,7 @@ public class ModConfigs {
                                                     HOME_INVITE_TIMEOUT.set(time);
                                                     HOME_INVITE_TIMEOUT.save();
                                                     context.getSource().sendSuccess(
-                                                            () -> TPAHandler.translateWithFallback(
+                                                            () -> ModUtils.translateWithFallback(
                                                                     "command.tpatool.home.inviteovertime.success",
                                                                     "Home invite timeout time set to %d seconds.",
                                                                     time
@@ -331,10 +385,7 @@ public class ModConfigs {
                                 .then(Commands.literal("homeinvitecdtime")
                                         .executes(context -> {
                                             ServerPlayer player = context.getSource().getPlayerOrException();
-                                            context.getSource().sendSuccess(() -> TPAHandler.translateWithFallback(
-                                                    "command.tpatool.setinfo.homeinvitecdtime",
-                                                    "Current home invite cooldown time is %d seconds.",
-                                                    HOME_INVITE_COOLDOWN.get()), true);
+                                            ModChatMenus.ConfigMenus.showHomeInviteCDTimeMenu(player);
                                             return 1;
                                         })
                                         .then(Commands.argument("time", IntegerArgumentType.integer(0))
@@ -344,7 +395,7 @@ public class ModConfigs {
                                                     HOME_INVITE_COOLDOWN.set(time);
                                                     HOME_INVITE_COOLDOWN.save();
                                                     context.getSource().sendSuccess(
-                                                            () -> TPAHandler.translateWithFallback(
+                                                            () -> ModUtils.translateWithFallback(
                                                                     "command.tpatool.home.invitecdtime.success",
                                                                     "Home invite cooldown time set to %d seconds.",
                                                                     time
@@ -354,30 +405,111 @@ public class ModConfigs {
                                                     DebugLog.info("Home invite cooldown time set to {} seconds by {}",
                                                             time, context.getSource().getDisplayName().getString());
                                                     return 1;
-                                                }))))
+                                                })))
+                                .then(Commands.literal("allowteleportrideentity")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            ModChatMenus.ConfigMenus.showAllowTeleportRideEntityMenu(player);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("enable", StringArgumentType.string())
+                                                .suggests(BOOLEAN_SUGGESTIONS)
+                                                .executes(context -> {
+                                                    String enableStr = StringArgumentType.getString(context, "enable");
+                                                    boolean enable = enableStr.equalsIgnoreCase("true");
+                                                    ALLOW_TELEPORT_RIDE_ENTITY.set(enable);
+                                                    ALLOW_TELEPORT_RIDE_ENTITY.save();
+                                                    context.getSource().sendSuccess(
+                                                            () -> ModUtils.translateWithFallback(
+                                                                    enable ? "command.tpatool.config.allowteleportrideentity.enabled" : "command.tpatool.config.allowteleportrideentity.disabled",
+                                                                    enable ? "Ride entity teleport enabled." : "Ride entity teleport disabled."
+                                                            ),
+                                                            true
+                                                    );
+                                                    DebugLog.info("Ride entity teleport {} by {}", enable ? "enabled" : "disabled", context.getSource().getDisplayName().getString());
+                                                    return 1;
+                                                })))
+                                .then(Commands.literal("rtpcdtime")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            ModChatMenus.ConfigMenus.showRTPCooldownTimeMenu(player);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("time", IntegerArgumentType.integer(0))
+                                                .suggests(TIME_SUGGESTIONS)
+                                                .executes(context -> {
+                                                    int time = IntegerArgumentType.getInteger(context, "time");
+                                                    RTP_COOLDOWN_TIME.set(time);
+                                                    RTP_COOLDOWN_TIME.save();
+                                                    context.getSource().sendSuccess(
+                                                            () -> ModUtils.translateWithFallback(
+                                                                    "command.tpatool.rtp.cooldown.success",
+                                                                    "RTP cooldown time set to %d seconds.",
+                                                                    time
+                                                            ),
+                                                            true
+                                                    );
+                                                    DebugLog.info("RTP cooldown time set to {} seconds by {}",
+                                                            time, context.getSource().getDisplayName().getString());
+                                                    return 1;
+                                                })))
+                                .then(Commands.literal("rtpscope")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            ModChatMenus.ConfigMenus.showRTPScopeMenu(player);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("scope", IntegerArgumentType.integer(0))
+                                                .suggests(RTP_SCOPE_SUGGESTIONS)
+                                                .executes(context -> {
+                                                    int scope = IntegerArgumentType.getInteger(context, "scope");
+                                                    RTP_SCOPE.set(scope);
+                                                    RTP_SCOPE.save();
+                                                    context.getSource().sendSuccess(
+                                                            () -> ModUtils.translateWithFallback(
+                                                                    "command.tpatool.rtp.scope.success",
+                                                                    "RTP scope set to %d blocks.",
+                                                                    scope
+                                                            ),
+                                                            true
+                                                    );
+                                                    DebugLog.info("RTP scope set to {} blocks by {}",
+                                                            scope, context.getSource().getDisplayName().getString());
+                                                    return 1;
+                                                })))
+                        )
                         .then(Commands.literal("debug")
-                        .executes(context -> {
-                            ServerPlayer player = context.getSource().getPlayerOrException();
-                            ModChatMenus.ConfigMenus.showDebugMenu(player);
-                            return 1;
-                        })
-                        .then(Commands.argument("enable", StringArgumentType.string())
-                                .suggests(BOOLEAN_SUGGESTIONS)
+                                .requires(source -> source.hasPermission(2))
                                 .executes(context -> {
-                                    String enableStr = StringArgumentType.getString(context, "enable");
-                                    boolean enable = enableStr.equalsIgnoreCase("true");
-                                    DEBUG_MODE.set(enable);
-                                    DEBUG_MODE.save();
-                                    context.getSource().sendSuccess(
-                                            () -> TPAHandler.translateWithFallback(
+                                    ServerPlayer player = context.getSource().getPlayerOrException();
+                                    ModChatMenus.ConfigMenus.showDebugMenu(player);
+                                    return 1;
+                                })
+                                .then(Commands.argument("enable", StringArgumentType.string())
+                                    .suggests(BOOLEAN_SUGGESTIONS)
+                                    .executes(context -> {
+                                        String enableStr = StringArgumentType.getString(context, "enable");
+                                        boolean enable = enableStr.equalsIgnoreCase("true");
+                                        DEBUG_MODE.set(enable);
+                                        DEBUG_MODE.save();
+                                        context.getSource().sendSuccess(
+                                            () -> ModUtils.translateWithFallback(
                                                     enable ? "command.tpatool.debug.enabled" : "command.tpatool.debug.disabled",
                                                     enable ? "Debug mode enabled." : "Debug mode disabled."
                                             ),
                                             true
-                                    );
-                                    DebugLog.info("Debug mode {} by {}", enable ? "enabled" : "disabled", context.getSource().getDisplayName().getString());
+                                        );
+                                        DebugLog.info("Debug mode {} by {}", enable ? "enabled" : "disabled", context.getSource().getDisplayName().getString());
+                                        return 1;
+                                    })))
+                        .then(Commands.literal("about")
+                                .requires(source -> source.hasPermission(0))
+                                .executes(context -> {
+                                    ServerPlayer player = context.getSource().getPlayerOrException();
+                                    ModChatMenus.ConfigMenus.showAboutMenu(player);
                                     return 1;
-                                })))
+                                })
+                        )
         );
     }
 }

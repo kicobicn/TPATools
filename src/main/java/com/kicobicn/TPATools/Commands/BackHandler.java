@@ -1,6 +1,7 @@
 package com.kicobicn.TPATools.Commands;
 
 import com.kicobicn.TPATools.config.ModConfigs;
+import com.kicobicn.TPATools.util.ModUtils;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -19,7 +20,7 @@ public class BackHandler {
     private static final Map<UUID, PlayerPosition> previousPositions = new HashMap<>();
 
     public static class PlayerPosition {
-        public final ResourceLocation dimension;
+        public ResourceLocation dimension;
         public final double x, y, z;
         public final float yRot, xRot;
 
@@ -67,7 +68,7 @@ public class BackHandler {
     private static int teleportBack(ServerPlayer player) {
         PlayerPosition pos = previousPositions.get(player.getUUID());
         if (pos == null) {
-            player.sendSystemMessage(TPAHandler.translateWithFallback(
+            player.sendSystemMessage(ModUtils.translateWithFallback(
                     "command.tpatool.back.no_position", "No previous position recorded!"
             ));
             return 0;
@@ -75,15 +76,17 @@ public class BackHandler {
         ServerLevel level = player.getServer().getLevel(ResourceKey.create(
                 Registries.DIMENSION, pos.dimension));
         if (level == null) {
-            player.sendSystemMessage(TPAHandler.translateWithFallback(
+            player.sendSystemMessage(ModUtils.translateWithFallback(
                     "command.tpatool.back.invalid_dimension", "Invalid dimension for previous position!"
             ));
             previousPositions.remove(player.getUUID());
             return 0;
         }
         recordPosition(player);
+        // 使用支持骑乘链和拴绳链的传送方法
+        ModUtils.teleportWithAllChains(player, level, pos.x, pos.y, pos.z, pos.yRot, pos.xRot);
         player.teleportTo(level, pos.x, pos.y, pos.z, pos.yRot, pos.xRot);
-        player.sendSystemMessage(TPAHandler.translateWithFallback(
+            player.sendSystemMessage(ModUtils.translateWithFallback(
                 "command.tpatool.back.success", "Teleported to previous position."
         ));
         ModConfigs.DebugLog.info("Player {} teleported back to dimension={}, x={}, y={}, z={}",

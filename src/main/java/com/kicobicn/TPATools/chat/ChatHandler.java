@@ -1,7 +1,7 @@
 package com.kicobicn.TPATools.chat;
 
-import com.kicobicn.TPATools.Commands.TPAHandler;
 import com.kicobicn.TPATools.config.ModConfigs;
+import com.kicobicn.TPATools.util.ModUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.*;
 import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
@@ -72,13 +72,13 @@ public class ChatHandler {
                 // 使用 Title 数据包来实现居中大标题提示的效果
                 ClientboundSetTitleTextPacket titlePacket =
                         new ClientboundSetTitleTextPacket(
-                                TPAHandler.translateWithFallback(
+                                ModUtils.translateWithFallback(
                                         "command.tpatool.chat.mention",
                                         "%s mentioned you",
                                         sender.getName()
                                 ).withStyle(ChatFormatting.AQUA)
                         );
-// 设置标题显示时间、淡入淡出时间
+                // 设置标题显示时间、淡入淡出时间
                 ClientboundSetTitlesAnimationPacket timesPacket =
                         new ClientboundSetTitlesAnimationPacket(10, 40, 10);
                 target.connection.send(timesPacket);
@@ -99,33 +99,33 @@ public class ChatHandler {
         return processedMessage;
     }
 
-    /**
-     * 在Component中替换文本
-     */
-    private MutableComponent replaceTextInComponent(Component component, String searchText, Component replacement) {
-        MutableComponent result = Component.literal("");
-        String text = component.getString();
-        int index = text.toLowerCase().indexOf(searchText.toLowerCase());
-
-        if (index == -1) {
-            return Component.literal(text);
-        }
-
-        // 添加前面的文本
-        if (index > 0) {
-            result.append(Component.literal(text.substring(0, index)));
-        }
-
-        // 添加替换的组件
-        result.append(replacement);
-
-        // 添加后面的文本
-        if (index + searchText.length() < text.length()) {
-            result.append(Component.literal(text.substring(index + searchText.length())));
-        }
-
-        return result;
-    }
+//    /**
+//     * 在Component中替换文本
+//     */
+//    private MutableComponent replaceTextInComponent(Component component, String searchText, Component replacement) {
+//        MutableComponent result = Component.literal("");
+//        String text = component.getString();
+//        int index = text.toLowerCase().indexOf(searchText.toLowerCase());
+//
+//        if (index == -1) {
+//            return Component.literal(text);
+//        }
+//
+//        // 添加前面的文本
+//        if (index > 0) {
+//            result.append(Component.literal(text.substring(0, index)));
+//        }
+//
+//        // 添加替换的组件
+//        result.append(replacement);
+//
+//        // 添加后面的文本
+//        if (index + searchText.length() < text.length()) {
+//            result.append(Component.literal(text.substring(index + searchText.length())));
+//        }
+//
+//        return result;
+//    }
 
     /**
      * 处理展示物品功能
