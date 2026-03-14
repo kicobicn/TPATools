@@ -52,6 +52,7 @@ public class ModConfigs {
     public static final ForgeConfigSpec.ConfigValue<Integer> RTP_MIN_Y;
     public static final ForgeConfigSpec.ConfigValue<Integer> RTP_MAX_Y;
 
+    public static final ForgeConfigSpec.ConfigValue<Integer> MAX_WARP_COUNT;
 
     //配置路径检查
     public static Path getConfigDir() {
@@ -72,7 +73,7 @@ public class ModConfigs {
         if (needOp) {
             return source.hasPermission(2); // 需要OP权限
         } else {
-            return true; // 不需要OP权限，所有玩家都可以使用
+            return true; // 不需要OP权限
         }
     }
 
@@ -81,7 +82,7 @@ public class ModConfigs {
 
     // Tab补全提供器
     private static final SuggestionProvider<CommandSourceStack> COMMAND_SUGGESTIONS = (context, builder) -> {
-        return builder.suggest("tpa").suggest("home").suggest("grave").suggest("back").suggest("rtp").buildFuture();
+        return builder.suggest("tpa").suggest("home").suggest("grave").suggest("back").suggest("rtp").suggest("warp").buildFuture();
     };
 
     private static final SuggestionProvider<CommandSourceStack> BOOLEAN_SUGGESTIONS = (context, builder) -> {
@@ -89,7 +90,7 @@ public class ModConfigs {
     };
 
     private static final SuggestionProvider<CommandSourceStack> LANGUAGE_SUGGESTIONS = (context, builder) -> {
-        return builder.suggest("en_us").suggest("zh_cn").buildFuture();
+        return builder.suggest("en_us").suggest("zh_cn").suggest("fr_fr").suggest("pt_br").suggest("es_es").suggest("zh_cn_cute").buildFuture();
     };
 
     private static final SuggestionProvider<CommandSourceStack> RTP_SCOPE_SUGGESTIONS = (context, builder) -> {
@@ -106,6 +107,15 @@ public class ModConfigs {
         builder.suggest("60");
         builder.suggest("120");
         builder.suggest("300");
+        return builder.buildFuture();
+    };
+
+    private static final SuggestionProvider<CommandSourceStack> MAX_WARP_COUNT_SUGGESTIONS = (context, builder) -> {
+        builder.suggest("1");
+        builder.suggest("2");
+        builder.suggest("3");
+        builder.suggest("4");
+        builder.suggest("5");
         return builder.buildFuture();
     };
 
@@ -172,6 +182,11 @@ public class ModConfigs {
                 .defineInRange("max_y", 320, -64, 320);
         builder.pop();
 
+        builder.push("warp");
+        MAX_WARP_COUNT = builder.comment("Maximum number of warps per player")
+                .defineInRange("max_warps", 3, 1, 100);
+        builder.pop();
+
         CONFIG = builder.build();
     }
 
@@ -212,6 +227,7 @@ public class ModConfigs {
         commandPermissions.putIfAbsent("grave", false);
         commandPermissions.putIfAbsent("back", false);
         commandPermissions.putIfAbsent("rtp", false);
+        commandPermissions.putIfAbsent("warp", false);
         commandPermissions.putIfAbsent("debug", false);
     }
 
@@ -242,7 +258,7 @@ public class ModConfigs {
                                                 .suggests(LANGUAGE_SUGGESTIONS)
                                                 .executes(context -> {
                                                     String lang = StringArgumentType.getString(context, "lang");
-                                                    if (lang.equals("en_us") || lang.equals("zh_cn")) {
+                                                    if (lang.equals("en_us") || lang.equals("zh_cn") || lang.equals("fr_fr") || lang.equals("pt_br") || lang.equals("es_es") || lang.equals("zh_cn_cute")) {
                                                         DEFAULT_LANGUAGE.set(lang);
                                                         DEFAULT_LANGUAGE.save();
                                                         ModUtils.loadTranslations(lang);
@@ -254,7 +270,7 @@ public class ModConfigs {
                                                         return 1;
                                                     }
                                                     context.getSource().sendFailure(
-                                                            ModUtils.translateWithFallback("command.tpatool.setlanguage.invalid", "Invalid language. Use 'en_us' or 'zh_cn'.")
+                                                            ModUtils.translateWithFallback("command.tpatool.setlanguage.invalid", "Invalid language.")
                                                     );
                                                     return 0;
                                                 })))
@@ -290,9 +306,9 @@ public class ModConfigs {
                                                             String command = StringArgumentType.getString(context, "command");
                                                             String enableStr = StringArgumentType.getString(context, "enable");
                                                             boolean enable = enableStr.equalsIgnoreCase("true");
-                                                            if (!Arrays.asList("tpa", "home", "grave", "back").contains(command)) {
+                                                            if (!Arrays.asList("tpa", "home", "grave", "back", "warp").contains(command)) {
                                                                 context.getSource().sendFailure(
-                                                                        ModUtils.translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', or 'back'.")
+                                                                        ModUtils.translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', 'back', or 'warp'.")
                                                                 );
                                                                 return 0;
                                                             }
@@ -443,7 +459,7 @@ public class ModConfigs {
                                                     RTP_COOLDOWN_TIME.save();
                                                     context.getSource().sendSuccess(
                                                             () -> ModUtils.translateWithFallback(
-                                                                    "command.tpatool.rtp.cooldown.success",
+                                                                    "command.tpatool.config.rtp.cooldown.success",
                                                                     "RTP cooldown time set to %d seconds.",
                                                                     time
                                                             ),
@@ -467,7 +483,7 @@ public class ModConfigs {
                                                     RTP_SCOPE.save();
                                                     context.getSource().sendSuccess(
                                                             () -> ModUtils.translateWithFallback(
-                                                                    "command.tpatool.rtp.scope.success",
+                                                                    "command.tpatool.config.rtp.scope.success",
                                                                     "RTP scope set to %d blocks.",
                                                                     scope
                                                             ),
@@ -475,6 +491,30 @@ public class ModConfigs {
                                                     );
                                                     DebugLog.info("RTP scope set to {} blocks by {}",
                                                             scope, context.getSource().getDisplayName().getString());
+                                                    return 1;
+                                                })))
+                                .then(Commands.literal("setmaxwarpcount")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            ModChatMenus.ConfigMenus.showMaxWarpCountMenu(player);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("count", IntegerArgumentType.integer(0))
+                                                .suggests(MAX_WARP_COUNT_SUGGESTIONS)
+                                                .executes(context -> {
+                                                    int count = IntegerArgumentType.getInteger(context, "count");
+                                                    MAX_WARP_COUNT.set(count);
+                                                    MAX_WARP_COUNT.save();
+                                                    context.getSource().sendSuccess(
+                                                            () -> ModUtils.translateWithFallback(
+                                                                    "command.tpatool.config.maxwarpcount.success",
+                                                                    "Max warp count set to %d.",
+                                                                    count
+                                                            ),
+                                                            true
+                                                    );
+                                                    DebugLog.info("Max warp count set to {} by {}",
+                                                            count, context.getSource().getDisplayName().getString());
                                                     return 1;
                                                 })))
                         )

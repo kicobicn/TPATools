@@ -460,7 +460,8 @@ public class HomeHandler {
                 Commands.literal("home")
                         .requires(source -> ModConfigs.checkCommandPermission(source, "home"))
                         .executes(context ->{
-                            ModChatMenus.HomeMenus.HomeMenu(context.getSource());
+                            ServerPlayer player = context.getSource().getPlayerOrException();
+                            ModChatMenus.HomeMenus.showHomeMenu(player);
                             return 1;
                         })
                         .then(Commands.literal("tp")

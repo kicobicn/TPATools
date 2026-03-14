@@ -31,6 +31,7 @@ public class TPATools {
         MinecraftForge.EVENT_BUS.register(HomeHandler.class);
         MinecraftForge.EVENT_BUS.register(GraveHandler.class);
         MinecraftForge.EVENT_BUS.register(RTPHandler.class);
+        MinecraftForge.EVENT_BUS.register(WarpHandler.class);
         MinecraftForge.EVENT_BUS.register(ModConfigs.class);
         MinecraftForge.EVENT_BUS.register(ModUtils.class);
         MinecraftForge.EVENT_BUS.register(new ChatHandler());

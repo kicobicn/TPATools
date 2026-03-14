@@ -4,6 +4,7 @@ import com.google.common.reflect.TypeToken;
 import com.kicobicn.TPATools.Commands.GraveHandler;
 import com.kicobicn.TPATools.Commands.HomeHandler;
 import com.kicobicn.TPATools.Commands.TPAHandler;
+import com.kicobicn.TPATools.Commands.WarpHandler;
 import com.kicobicn.TPATools.config.ModConfigs;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -17,6 +18,8 @@ import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.server.ServerLifecycleHooks;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +31,8 @@ import static com.kicobicn.TPATools.config.ModConfigs.TIMEOUT_TICKS;
 
 public class ModUtils {
 
+    private static final Logger LOGGER = LogManager.getLogger("TPAtools");
+
     public static final Map<String, String> translations = new HashMap<>();
 
     @SubscribeEvent
@@ -38,6 +43,7 @@ public class ModUtils {
         loadToggleStates();
         loadLockedPlayers();
         loadCommandPermissions();
+        WarpHandler.loadWarpPoints();
     }
 
     @SubscribeEvent
@@ -47,6 +53,7 @@ public class ModUtils {
         saveToggleStates();
         saveLockedPlayers();
         saveCommandPermissions();
+        WarpHandler.saveWarpPoints();
     }
 
     public static MutableComponent translateWithFallback(String key, String fallback, Object... args) {
@@ -75,23 +82,14 @@ public class ModUtils {
                 translations.putAll(loadedTranslations);
                 ModConfigs.DebugLog.info("Loaded translations for language: {}", lang);
             } else {
-                ModConfigs.DebugLog.warn("Server not available, using fallback translations for {}", lang);
-                loadFallbackTranslations();
+                LOGGER.warn("Server not available, using fallback translations for {}", lang);
             }
         } catch (IOException e) {
-            ModConfigs.DebugLog.error("Failed to load translations for {}: {}, using fallback", lang, e.getMessage());
-            loadFallbackTranslations();
+            LOGGER.error("Failed to load translations for {}: {}, using fallback", lang, e.getMessage());
         }
     }
 
-    private static void loadFallbackTranslations() {
-        translations.put("command.tpatool.tpa.self", "You cannot teleport to yourself!");
-        translations.put("command.tpatool.tpa.cooldown", "Please wait for the cooldown (60 seconds)!");
-        translations.put("command.tpatool.tpa.accept", "Accept");
-        translations.put("command.tpatool.tpa.deny", "Deny");
-    }
-
-    private static final Set<String> availableLanguages = new HashSet<>(Set.of("en_us", "zh_cn"));
+    private static final Set<String> availableLanguages = new HashSet<>(Set.of("en_us", "zh_cn", "fr_fr", "pt_br", "es_es", "zh_cn_cute"));
 
     public static void detectAvailableLanguages() {
         availableLanguages.clear();
@@ -101,7 +99,6 @@ public class ModUtils {
                 var resources = server.getResourceManager().listResources("lang", path -> path.getPath().endsWith(".json"));
                 for (var entry : resources.entrySet()) {
                     ResourceLocation loc = entry.getKey();
-                    // loc: tpatools:lang/en_us.json
                     String path = loc.getPath();
                     if (path.startsWith("lang/") && path.endsWith(".json")) {
                         String langCode = path.substring(5, path.length() - 5); // 去掉 "lang/" 和 ".json"
@@ -112,11 +109,15 @@ public class ModUtils {
                     ModConfigs.DebugLog.warn("No languages detected, fallback to en_us/zh_cn");
                     availableLanguages.add("en_us");
                     availableLanguages.add("zh_cn");
+                    availableLanguages.add("fr_fr");
+                    availableLanguages.add("pt_br");
+                    availableLanguages.add("es_es");
+                    availableLanguages.add("zh_cn_cute");
                 }
                 ModConfigs.DebugLog.info("Detected languages: {}", availableLanguages);
             }
         } catch (Exception e) {
-            ModConfigs.DebugLog.error("Failed to detect languages: {}", e.getMessage());
+            LOGGER.error("Failed to detect languages: {}", e.getMessage());
         }
     }
 

@@ -1,11 +1,11 @@
 package com.kicobicn.TPATools.chat;
 
 import com.kicobicn.TPATools.Commands.HomeHandler;
+import com.kicobicn.TPATools.Commands.WarpHandler;
 import com.kicobicn.TPATools.config.ModConfigs;
 import com.kicobicn.TPATools.util.ModUtils;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.ChatFormatting;
-import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.*;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.entity.player.PlayerEvent;
@@ -80,16 +80,7 @@ public class ModChatMenus {
 
     public static class HomeMenus {
 
-        public static void HomeMenu(CommandSourceStack source) {
-            try {
-                ServerPlayer player = source.getPlayerOrException();
-                showHomeMenu(player, 0);
-            } catch (Exception e) {
-                ModConfigs.DebugLog.error("Error showing home menu: {}", e.getMessage());
-            }
-        }
-
-        private static void showHomeMenu(ServerPlayer player, int page) {
+        public static void showHomeMenu(ServerPlayer player) {
             MutableComponent menu = Component.literal("");
 
             // 标题
@@ -559,19 +550,23 @@ public class ModChatMenus {
                     .append(Component.literal("\n"));
 
             // 按钮
-            menu.append(createI18nButton("menu.tpatools.config.button.configmenu",
-                            "menu.tpatools.config.hover.configmenu",
-                            "/tpatools configs",
-                            ChatFormatting.AQUA,
-                            true))
-                    .append(Component.literal(" "))
-                    .append(createI18nButton("menu.tpatools.config.button.debugmode",
-                            "menu.tpatools.config.hover.debugmode",
-                            "/tpatools debug",
-                            ChatFormatting.YELLOW,
-                            true))
-                    .append(Component.literal(" "))
-                    .append(createI18nButton("menu.tpatools.config.button.about",
+
+            if (player.hasPermissions(2)) {
+                menu.append(createI18nButton("menu.tpatools.config.button.configmenu",
+                                "menu.tpatools.config.hover.configmenu",
+                                "/tpatools configs",
+                                ChatFormatting.AQUA,
+                                true))
+                        .append(Component.literal(" "))
+                        .append(createI18nButton("menu.tpatools.config.button.debugmode",
+                                "menu.tpatools.config.hover.debugmode",
+                                "/tpatools debug",
+                                ChatFormatting.YELLOW,
+                                true))
+                        .append(Component.literal(" "));
+                }
+
+                    menu.append(createI18nButton("menu.tpatools.config.button.about",
                             "menu.tpatools.config.hover.about",
                             "/tpatools about",
                             ChatFormatting.LIGHT_PURPLE,
@@ -607,6 +602,42 @@ public class ModChatMenus {
             menu.append(createI18nButton("menu.tpatools.config.button.setlanguage_2",
                             "menu.tpatools.config.hover.setlanguage",
                             "/tpatools configs setlanguage en_us",
+                            langColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            langColor = "fr_fr".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ?
+                    ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setlanguage_3",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage fr_fr",
+                            langColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            langColor = "es_es".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ?
+                    ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setlanguage_4",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage es_es",
+                            langColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            langColor = "pt_br".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ?
+                    ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setlanguage_5",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage pt_br",
+                            langColor,
+                            true))
+                    .append(Component.literal(" "));
+
+            langColor = "zh_cn_cute".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ?
+                    ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setlanguage_6",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage zh_cn_cute",
                             langColor,
                             true))
                     .append(Component.literal("\n"));
@@ -903,17 +934,65 @@ public class ModChatMenus {
                             false))
                     .append(Component.literal("\n"));
 
+            menu.append(ModUtils.translateWithFallback("menu.tpatools.config.branch.setmaxwarpcount", "- Max Warp Count set (setmaxwarpcount)\n")
+                    .withStyle(ChatFormatting.WHITE));
+            int maxwarpcount = ModConfigs.MAX_WARP_COUNT.get();
+            ChatFormatting maxwarpcountColor = maxwarpcount == 1 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_1",
+                            "menu.tpatools.config.hover.setmaxwarpcount",
+                            "/tpatools configs setmaxwarpcount 1",
+                            maxwarpcountColor,
+                            true))
+                    .append(Component.literal(" "));
+            maxwarpcountColor = maxwarpcount == 2 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_2",
+                            "menu.tpatools.config.hover.setmaxwarpcount",
+                            "/tpatools configs setmaxwarpcount 2",
+                            maxwarpcountColor,
+                            true))
+                    .append(Component.literal(" "));
+            maxwarpcountColor = maxwarpcount == 3 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_3",
+                            "menu.tpatools.config.hover.setmaxwarpcount",
+                            "/tpatools configs setmaxwarpcount 3",
+                            maxwarpcountColor,
+                            true))
+                    .append(Component.literal(" "));
+            maxwarpcountColor = maxwarpcount == 4 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_4",
+                            "menu.tpatools.config.hover.setmaxwarpcount",
+                            "/tpatools configs setmaxwarpcount 4",
+                            maxwarpcountColor,
+                            true))
+                    .append(Component.literal(" "));
+            maxwarpcountColor = maxwarpcount == 5 ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_5",
+                            "menu.tpatools.config.hover.setmaxwarpcount",
+                            "/tpatools configs setmaxwarpcount 5",
+                            maxwarpcountColor,
+                            true))
+                    .append(Component.literal(" "));
+            menu.append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_custom",
+                            "menu.tpatools.config.hover.setmaxwarpcount",
+                            "/tpatools configs setmaxwarpcount ",
+                            ChatFormatting.GRAY,
+                            false))
+                    .append(Component.literal("\n"));
+
+
             menu.append(ModUtils.translateWithFallback("menu.tpatools.config.branch.debug", "- Debug Mode (debug)\n")
                     .withStyle(ChatFormatting.WHITE));
 
             boolean debugEnabled = ModConfigs.isDebugEnabled();
             ChatFormatting debugColor = debugEnabled ? ChatFormatting.GREEN : ChatFormatting.GRAY;
             menu.append(createI18nButton(debugEnabled ? "menu.tpatools.config.button.debugvalue.true" : "menu.tpatools.config.button.debugvalue.false",
-                            "menu.tpatools.config.hover.debugvalue",
-                            "/tpatools debug " + (!debugEnabled),
-                            debugColor,
-                            true))
-                    .append(Component.literal("\n"));
+                    "menu.tpatools.config.hover.debugvalue",
+                    "/tpatools debug " + (!debugEnabled),
+                    debugColor,
+                    true));
+
+            menu.append(Component.literal("\n=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
 
             player.sendSystemMessage(menu);
         }
@@ -941,6 +1020,30 @@ public class ModChatMenus {
                             "menu.tpatools.config.hover.setlanguage",
                             "/tpatools configs setlanguage en_us",
                             "en_us".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setlanguage_3",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage fr_fr",
+                            "fr_fr".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setlanguage_4",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage pt_br",
+                            "pt_br".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setlanguage_5",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage es_es",
+                            "es_es".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setlanguage_6",
+                            "menu.tpatools.config.hover.setlanguage",
+                            "/tpatools configs setlanguage zh_cn_cute",
+                            "zh_cn_cute".equals(ModConfigs.DEFAULT_LANGUAGE.get()) ? ChatFormatting.GREEN : ChatFormatting.GRAY,
                             true));
 
             // 分割线
@@ -1188,7 +1291,7 @@ public class ModChatMenus {
             MutableComponent menu = Component.literal("");
             menu.append(Component.literal("====== TPATools - about ======\n")
                             .withStyle(ChatFormatting.GOLD))
-                    .append(ModUtils.translateWithFallback("menu.tpatools.about.main", "Thanx for using TPATools.\n")
+                    .append(ModUtils.translateWithFallback("menu.tpatools.about.main", "Thanx for using TPATools. Your translation maybe not complete.\n")
                             .withStyle(ChatFormatting.WHITE))
                     .append(ModUtils.translateWithFallback("menu.tpatools.about.url.mcmod", "[MCMod Wiki Page]")
                             .withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, "https://www.mcmod.cn/class/22216.html"))
@@ -1201,7 +1304,13 @@ public class ModChatMenus {
                                     .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, ModUtils.translateWithFallback("menu.tpatools.about.hover.url.modrinth", "Click to open the Modrinth Page.")))
                             )
                             .withStyle(ChatFormatting.GREEN))
-            ;
+                    .append(Component.literal(" "))
+                    .append(ModUtils.translateWithFallback("menu.tpatools.about.url.github", "[GitHub issue Page]")
+                            .withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, "https://github.com/kicobicn/TPATools/issues"))
+                                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, ModUtils.translateWithFallback("menu.tpatools.about.hover.url.github", "Click to open the GitHub issue Page.")))
+                            )
+                            .withStyle(ChatFormatting.DARK_GRAY)
+                    );
 
             menu.append(Component.literal("\n===================")
                     .withStyle(ChatFormatting.GOLD));
@@ -1390,11 +1499,188 @@ public class ModChatMenus {
 
             // 分割线
             menu.append(Component.literal("\n=============================\n")
-                            .withStyle(ChatFormatting.GOLD));
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showMaxWarpCountMenu(ServerPlayer player) {
+            MutableComponent menu = Component.literal("");
+
+            // 标题
+            menu.append(Component.literal("====== TPATools - setting/maxwarpcount ======\n")
+                            .withStyle(ChatFormatting.GOLD))
+                    .append(ModUtils.translateWithFallback("menu.tpatools.config.tips.setmaxwarpcount", "Sets the maximum number of warps.\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(ModUtils.translateWithFallback("menu.tpatools.config.default.setmaxwarpcount", "- Default: 3 (currently set to {} warps)\n", ModConfigs.MAX_WARP_COUNT.get())
+                            .withStyle(ChatFormatting.GRAY));
+
+            // 按钮
+            int maxWarpCount = ModConfigs.MAX_WARP_COUNT.get();
+            menu.append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_1",
+                            "menu.tpatools.config.hover.maxwarpcount",
+                            "/tpatools configs setmaxwarpcount 1",
+                            1 == maxWarpCount ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_2",
+                            "menu.tpatools.config.hover.maxwarpcount",
+                            "/tpatools configs setmaxwarpcount 2",
+                            2 == maxWarpCount ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_3",
+                            "menu.tpatools.config.hover.maxwarpcount",
+                            "/tpatools configs setmaxwarpcount 3",
+                            3 == maxWarpCount ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_4",
+                            "menu.tpatools.config.hover.maxwarpcount",
+                            "/tpatools configs setmaxwarpcount 4",
+                            4 == maxWarpCount ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_5",
+                            "menu.tpatools.config.hover.maxwarpcount",
+                            "/tpatools configs setmaxwarpcount 5",
+                            5 == maxWarpCount ? ChatFormatting.GREEN : ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.config.button.setmaxwarpcount_custom",
+                            "menu.tpatools.config.hover.maxwarpcount",
+                            "/tpatools configs setmaxwarpcount ",
+                            ChatFormatting.GRAY,
+                            false));
+
+            // 分割线
+            menu.append(Component.literal("\n=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
 
             player.sendSystemMessage(menu);
         }
     }
+
+    public static void showWarpMenu(ServerPlayer player) {
+        MutableComponent menu = Component.literal("");
+        // 标题
+        menu.append(Component.literal("====== TPATools - warp ======\n")
+                        .withStyle(ChatFormatting.GOLD))
+                .append(ModUtils.translateWithFallback("menu.tpatools.warp.tip", "Warp point menu.\n")
+                        .withStyle(ChatFormatting.WHITE));
+
+        // 地标列表
+        menu.append(Component.literal(" "))
+                .append(createI18nButton("menu.tpatools.warp.button.warp_list",
+                        "menu.tpatools.warp.hover.warp_list",
+                        "/warp list",
+                        ChatFormatting.GREEN,
+                        true))
+                .append(Component.literal(" "));
+        if (player.hasPermissions(2)) {
+            menu.append(Component.literal(" "))
+                    .append(createI18nButton("menu.tpatools.warp.button.setwarp",
+                            "menu.tpatools.warp.hover.setwarp",
+                            "/warp set ",
+                            ChatFormatting.GREEN,
+                            false))
+                    .append(Component.literal(" "));
+        }
+
+        // 分割线
+        menu.append(Component.literal("\n=============================\n")
+                        .withStyle(ChatFormatting.GOLD));
+
+        player.sendSystemMessage(menu);
+    }
+
+    public static void showWarpList(ServerPlayer player, int page) {
+        
+        if (WarpHandler.warpPoints.isEmpty()) {
+            player.sendSystemMessage(ModUtils.translateWithFallback(
+                    "command.tpatool.warp.no_warps", "No warp points available."));
+            return;
+        }
+
+        List<String> warpNames = new ArrayList<>(WarpHandler.warpPoints.keySet());
+        int pageSize = 5;
+        int totalPages = (int) Math.ceil((double) warpNames.size() / pageSize);
+        page = Math.max(0, Math.min(page, totalPages - 1));
+
+        MutableComponent menu = Component.literal("");
+
+        // 标题
+        menu.append(Component.literal("====== TPATools - Warp/list ======\n")
+                        .withStyle(ChatFormatting.GOLD))
+                .append(ModUtils.translateWithFallback("menu.tpatools.warp.title.warp_list", "        - Available Warp Points -\n")
+                        .withStyle(ChatFormatting.WHITE))
+                .append(Component.literal("\n"));
+
+        // 显示当前页的warp点
+        int startIndex = page * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, warpNames.size());
+
+        for (int i = startIndex; i < endIndex; i++) {
+            String warpName = warpNames.get(i);
+            WarpHandler.WarpPoint warp = WarpHandler.warpPoints.get(warpName);
+
+            menu.append(Component.literal("- " + warpName + "\n")
+                    .withStyle(ChatFormatting.WHITE));
+
+            String position = String.format("%s (x=%.2f, y=%.2f, z=%.2f)",
+                    warp.dimension, warp.x, warp.y, warp.z);
+            menu.append(Component.literal("  " + position + "\n")
+                    .withStyle(ChatFormatting.GRAY));
+
+            // 按钮行
+            MutableComponent buttons = Component.literal("  ");
+            buttons.append(createI18nButton("menu.tpatools.warp.button.teleport",
+                            "menu.tpatools.warp.hover.teleport",
+                            "/warp tp " + warpName,
+                            ChatFormatting.GREEN,
+                            true))
+                    .append(Component.literal(" "));
+
+            if (player.hasPermissions(2)) { // OP权限
+                buttons.append(createI18nButton("menu.tpatools.warp.button.remove",
+                                "menu.tpatools.warp.hover.remove",
+                                "/warp remove " + warpName,
+                                ChatFormatting.RED,
+                                true))
+                        .append(Component.literal(" "));
+            }
+
+            menu.append(buttons).append(Component.literal("\n"));
+        }
+
+        // 分页系统
+        if (totalPages > 1) {
+            menu.append(Component.literal("=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            MutableComponent pagination = Component.literal(" ");
+            pagination.append(createI18nButton("menu.tpatools.warp.button.previouspage",
+                            "menu.tpatools.warp.hover.previouspage",
+                            "/warp list page " + Math.max(0, page - 1),
+                            ChatFormatting.GRAY,
+                            true))
+                    .append(Component.literal(" - " + (page + 1) + "/" + totalPages + " - "))
+                    .append(createI18nButton("menu.tpatools.warp.button.nextpage",
+                            "menu.tpatools.warp.hover.nextpage",
+                            "/warp list page " + Math.min(totalPages - 1, page + 1),
+                            ChatFormatting.GRAY,
+                            true));
+
+            menu.append(pagination).append(Component.literal("\n"));
+        } else {
+            menu.append(Component.literal("=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+        }
+
+        player.sendSystemMessage(menu);
+    }
+
     public static MutableComponent createButton(String text, String hoverText, String command, ChatFormatting color, boolean isClickable) {
         MutableComponent button = Component.literal(text)
                 .withStyle(style -> {
