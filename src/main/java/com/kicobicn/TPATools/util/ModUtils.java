@@ -22,8 +22,9 @@ import net.minecraftforge.server.ServerLifecycleHooks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 import static com.kicobicn.TPATools.Commands.TPAHandler.*;
@@ -73,20 +74,72 @@ public class ModUtils {
     // 加载翻译
     public static void loadTranslations(String lang) {
         translations.clear();
-        ResourceLocation loc = ResourceLocation.fromNamespaceAndPath("tpatools", "lang/" + lang + ".json");
+        
         try {
-            MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-            if (server != null) {
-                var resource = server.getResourceManager().getResource(loc).orElseThrow();
-                String jsonContent = new String(resource.open().readAllBytes(), StandardCharsets.UTF_8);
+            // 方法1：直接使用类路径加载（最可靠的方法）
+            String fileName = "assets/tpatools/lang/" + lang + ".json";
+            var inputStream = ModUtils.class.getClassLoader().getResourceAsStream(fileName);
+            
+            if (inputStream != null) {
+                String jsonContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
                 Map<String, String> loadedTranslations = GSON.fromJson(jsonContent, new TypeToken<Map<String, String>>(){}.getType());
                 translations.putAll(loadedTranslations);
-                ModConfigs.DebugLog.info("Loaded translations for language: {}", lang);
-            } else {
-                LOGGER.warn("Server not available, using fallback translations for {}", lang);
+                ModConfigs.DebugLog.info("Loaded translations for language: {} using classpath", lang);
+                return;
             }
-        } catch (IOException e) {
-            LOGGER.error("Failed to load translations for {}: {}, using fallback", lang, e.getMessage());
+            
+            // 方法2：尝试使用ResourceLocation（如果服务器已启动）
+            MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+            if (server != null) {
+                ResourceLocation loc = ResourceLocation.fromNamespaceAndPath("tpatools", "lang/" + lang + ".json");
+                var resource = server.getResourceManager().getResource(loc);
+                
+                if (resource.isPresent()) {
+                    String jsonContent = new String(resource.get().open().readAllBytes(), StandardCharsets.UTF_8);
+                    Map<String, String> loadedTranslations = GSON.fromJson(jsonContent, new TypeToken<Map<String, String>>(){}.getType());
+                    translations.putAll(loadedTranslations);
+                    ModConfigs.DebugLog.info("Loaded translations for language: {} using ResourceLocation", lang);
+                    return;
+                }
+            }
+            
+            // 方法3：尝试从文件系统读取（开发环境）
+            Path configPath = ModConfigs.getConfigDir().resolve("lang").resolve(lang + ".json");
+            if (Files.exists(configPath)) {
+                String jsonContent = Files.readString(configPath, StandardCharsets.UTF_8);
+                Map<String, String> loadedTranslations = GSON.fromJson(jsonContent, new TypeToken<Map<String, String>>(){}.getType());
+                translations.putAll(loadedTranslations);
+                ModConfigs.DebugLog.info("Loaded translations for language: {} from config directory", lang);
+                return;
+            }
+            
+            // 如果所有方法都失败，使用回退翻译
+            LOGGER.warn("All translation loading methods failed for language: {}", lang);
+            loadFallbackTranslations();
+            
+        } catch (Exception e) {
+            LOGGER.error("Failed to load translations for {}: {}", lang, e.getMessage());
+            loadFallbackTranslations();
+        }
+    }
+    
+    // 加载回退翻译
+    private static void loadFallbackTranslations() {
+        try {
+            // 尝试加载英文作为回退
+            String fileName = "assets/tpatools/lang/en_us.json";
+            var inputStream = ModUtils.class.getClassLoader().getResourceAsStream(fileName);
+            
+            if (inputStream != null) {
+                String jsonContent = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+                Map<String, String> loadedTranslations = GSON.fromJson(jsonContent, new TypeToken<Map<String, String>>(){}.getType());
+                translations.putAll(loadedTranslations);
+                ModConfigs.DebugLog.info("Loaded fallback translations (en_us)");
+            } else {
+                LOGGER.warn("Fallback translation file not found");
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to load fallback translations: {}", e.getMessage());
         }
     }
 
