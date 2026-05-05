@@ -29,12 +29,12 @@ import java.nio.file.Path;
 import java.util.*;
 
 public class HomeHandler {
-    private static final Map<UUID, Map<String, Home>> playerHomes = new HashMap<>();
-    private static final Map<String, Map<String, PublicHomeInfo>> publicHomesByOwner = new HashMap<>();
+    public static final Map<UUID, Map<String, Home>> playerHomes = new HashMap<>();
+    public static final Map<String, Map<String, PublicHomeInfo>> publicHomesByOwner = new HashMap<>();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     //PublicHomeInfo 类，用于存储公开家的 UUID 和用户名
-    private static class PublicHomeInfo {
+    public static class PublicHomeInfo {
         public UUID ownerUUID;
         public String ownerName;
         public String homeName;

@@ -44,6 +44,19 @@ public class ModConfigs {
     public static final ForgeConfigSpec.IntValue COOLDOWN_SECONDS;
     public static final ForgeConfigSpec.IntValue WAIT_SECONDS;
     public static final ForgeConfigSpec.BooleanValue DEBUG_MODE;
+    
+    // 新增1.20.1版本配置项
+    public static final ForgeConfigSpec.ConfigValue<String> DATABASE_TYPE;
+    public static final ForgeConfigSpec.ConfigValue<String> MYSQL_HOST;
+    public static final ForgeConfigSpec.IntValue MYSQL_PORT;
+    public static final ForgeConfigSpec.ConfigValue<String> MYSQL_DATABASE;
+    public static final ForgeConfigSpec.ConfigValue<String> MYSQL_USERNAME;
+    public static final ForgeConfigSpec.ConfigValue<String> MYSQL_PASSWORD;
+    public static final ForgeConfigSpec.BooleanValue ALLOW_TELEPORT_RIDE_ENTITY;
+    public static final ForgeConfigSpec.IntValue MAX_WARP_COUNT;
+    public static final ForgeConfigSpec.IntValue RTP_MIN_DISTANCE;
+    public static final ForgeConfigSpec.IntValue RTP_MAX_DISTANCE;
+    public static final ForgeConfigSpec.IntValue RTP_MAX_ATTEMPTS;
 
     //配置路径检查
     public static Path getConfigDir() {
@@ -110,6 +123,41 @@ public class ModConfigs {
         DEBUG_MODE = builder.comment("Enable debug logging for detailed output")
                 .define("debugMode", false); // 默认关闭
         builder.pop();
+        
+        // 新增配置项
+        builder.push("database");
+        DATABASE_TYPE = builder.comment("Database type: json or mysql")
+                .define("type", "json");
+        MYSQL_HOST = builder.comment("MySQL host address")
+                .define("host", "localhost");
+        MYSQL_PORT = builder.comment("MySQL port")
+                .defineInRange("port", 3306, 1, 65535);
+        MYSQL_DATABASE = builder.comment("MySQL database name")
+                .define("database", "minecraft");
+        MYSQL_USERNAME = builder.comment("MySQL username")
+                .define("username", "root");
+        MYSQL_PASSWORD = builder.comment("MySQL password")
+                .define("password", "");
+        builder.pop();
+        
+        builder.push("teleport");
+        ALLOW_TELEPORT_RIDE_ENTITY = builder.comment("Allow teleporting with ride entities")
+                .define("allowRideEntity", true);
+        builder.pop();
+        
+        builder.push("warp");
+        MAX_WARP_COUNT = builder.comment("Maximum number of warp points")
+                .defineInRange("maxCount", 50, 1, Integer.MAX_VALUE);
+        builder.pop();
+        
+        builder.push("rtp");
+        RTP_MIN_DISTANCE = builder.comment("Minimum distance for random teleport")
+                .defineInRange("minDistance", 100, 0, Integer.MAX_VALUE);
+        RTP_MAX_DISTANCE = builder.comment("Maximum distance for random teleport")
+                .defineInRange("maxDistance", 1000, 1, Integer.MAX_VALUE);
+        RTP_MAX_ATTEMPTS = builder.comment("Maximum attempts to find safe location")
+                .defineInRange("maxAttempts", 50, 1, Integer.MAX_VALUE);
+        builder.pop();
 
         CONFIG = builder.build();
     }
@@ -151,10 +199,12 @@ public class ModConfigs {
         commandPermissions.putIfAbsent("grave", false);
         commandPermissions.putIfAbsent("back", false);
         commandPermissions.putIfAbsent("debug", false);
+        commandPermissions.putIfAbsent("warp", false);
+        commandPermissions.putIfAbsent("rtp", false);
     }
 
     //lang类
-    private static final Set<String> SUPPORTED_LANGUAGES = Set.of("en_us", "zh_cn");
+    private static final Set<String> SUPPORTED_LANGUAGES = Set.of("en_us", "zh_cn", "fr_fr", "pt_br", "es_es", "zh_cn_cute");
 
     public static void loadTranslations(String lang) {
         translations.clear();
@@ -176,9 +226,19 @@ public class ModConfigs {
                 }
             } else {
                 LOGGER.debug("ModFile.findResource did not return existing path for assets/{}/lang/{}", modid, fileName);
+                
+                // 尝试从配置目录加载
+                Path configPath = getConfigDir().resolve("lang").resolve(fileName);
+                if (Files.exists(configPath)) {
+                    try (BufferedReader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
+                        JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
+                        for (String key : json.keySet()) translations.put(key, json.get(key).getAsString());
+                        LOGGER.info("Loaded language from config path: {}", configPath.toString());
+                    }
+                }
             }
         } catch (Exception e) {
-            LOGGER.warn("ModFile lookup failed for assets/{}/lang/{}: {}", modid, fileName, e.getMessage());
+            LOGGER.warn("Failed to load language file for {}: {}", lang, e.getMessage());
         }
     }
 
@@ -259,9 +319,9 @@ public class ModConfigs {
                                                     String command = StringArgumentType.getString(context, "command");
                                                     String enableStr = StringArgumentType.getString(context, "enable");
                                                     boolean enable = enableStr.equalsIgnoreCase("true");
-                                                    if (!Arrays.asList("tpa", "home", "grave", "back").contains(command)) {
+                                                    if (!Arrays.asList("tpa", "home", "grave", "back", "warp", "rtp").contains(command)) {
                                                         context.getSource().sendFailure(
-                                                                translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', or 'back'.")
+                                                                translateWithFallback("command.tpatool.needop.invalid_command", "Invalid command. Use 'tpa', 'home', 'grave', 'back', 'warp', or 'rtp'.")
                                                         );
                                                         return 0;
                                                     }

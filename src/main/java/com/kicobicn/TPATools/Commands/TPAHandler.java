@@ -28,11 +28,11 @@ import java.util.*;
 import static com.kicobicn.TPATools.config.ModConfigs.*;
 
 public class TPAHandler {
-    private static final Map<UUID, List<TPARequest>> requests = new HashMap<>();
+    public static final Map<UUID, List<TPARequest>> requests = new HashMap<>();
     private static final Map<UUID, Long> cooldowns = new HashMap<>();
     private static final Map<UUID, Boolean> toggleStates = new HashMap<>();
     private static final Map<UUID, Set<UUID>> lockedPlayers = new HashMap<>();
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    public static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public static class TPARequest {
         public final ServerPlayer sender;
@@ -68,7 +68,7 @@ public class TPAHandler {
     }
 
     // 加载命令权限状态
-    private static void loadCommandPermissions() {
+    public static void loadCommandPermissions() {
         try {
             Path path = ModConfigs.getConfigDir().resolve("tpatool.json");
             if (Files.exists(path)) {
@@ -98,7 +98,7 @@ public class TPAHandler {
     }
 
     // 加载免打扰状态
-    private static void loadToggleStates() {
+    public static void loadToggleStates() {
         try {
             Path path = ModConfigs.getConfigDir().resolve("tpatool_toggles.json");
             if (Files.exists(path)) {
@@ -116,7 +116,7 @@ public class TPAHandler {
     }
 
     // 保存免打扰状态
-    private static void saveToggleStates() {
+    public static void saveToggleStates() {
         try {
             Path path = ModConfigs.getConfigDir().resolve("tpatool_toggles.json");
             Files.writeString(path, GSON.toJson(toggleStates));
@@ -127,7 +127,7 @@ public class TPAHandler {
     }
 
     // 加载锁定玩家列表
-    private static void loadLockedPlayers() {
+    public static void loadLockedPlayers() {
         try {
             Path path = ModConfigs.getConfigDir().resolve("tpatool_locks.json");
             if (Files.exists(path)) {
@@ -145,7 +145,7 @@ public class TPAHandler {
     }
 
     // 保存锁定玩家列表
-    private static void saveLockedPlayers() {
+    public static void saveLockedPlayers() {
         try {
             Path path = ModConfigs.getConfigDir().resolve("tpatool_locks.json");
             Files.writeString(path, GSON.toJson(lockedPlayers));
