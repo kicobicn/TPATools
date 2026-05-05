@@ -13,6 +13,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.portal.DimensionTransition;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -225,12 +226,20 @@ public class ModUtils {
 
         // 检查目标维度是否相同
         if (entity.level() != targetLevel) {
-            // 不同维度，需要跨维度传送
-            entity.changeDimension(targetLevel);
-            // changeDimension后实体位置可能不会立即更新，等待实体到达新维度后再设置位置
+            DimensionTransition transition = new DimensionTransition(
+                    targetLevel,
+                    new Vec3(x, y, z),
+                    Vec3.ZERO,
+                    yRot,
+                    xRot,
+                    DimensionTransition.DO_NOTHING
+            );
+            entity.changeDimension(transition);
+            // changeDimension 方法会处理实体的传送和位置更新，因此无需再调用 moveTo
+            return;
         }
 
-        // 设置实体位置和旋转
+        // 如果在同一维度，则直接设置实体位置和旋转
         entity.moveTo(x, y, z, yRot, xRot);
     }
 
