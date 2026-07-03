@@ -11,6 +11,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 
 import com.kicobicn.TPATools.util.ModUtils;
+import net.minecraft.core.BlockPos;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -177,8 +178,14 @@ public class GraveHandler {
             return 0;
         }
         BackHandler.recordPosition(player);
-        // 使用支持骑乘链和拴绳链的传送方法
-        ModUtils.teleportWithAllChains(player, level, pos.x, pos.y, pos.z, pos.yRot, pos.xRot);
+        double gx = pos.x, gy = pos.y, gz = pos.z;
+        if (ModConfigs.SAFE_TELEPORT.get()) {
+            BlockPos safePos = ModUtils.findSafeTeleportPosition(level, gx, gy, gz);
+            gx = safePos.getX() + 0.5;
+            gy = safePos.getY();
+            gz = safePos.getZ() + 0.5;
+        }
+        ModUtils.teleportWithAllChains(player, level, gx, gy, gz, pos.yRot, pos.xRot);
         player.sendSystemMessage(ModUtils.translateWithFallback(
                 "command.tpatool.grave.success", "Teleported to last death position."
         ));

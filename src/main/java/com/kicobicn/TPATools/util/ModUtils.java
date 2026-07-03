@@ -6,13 +6,17 @@ import com.kicobicn.TPATools.Commands.HomeHandler;
 import com.kicobicn.TPATools.Commands.TPAHandler;
 import com.kicobicn.TPATools.Commands.WarpHandler;
 import com.kicobicn.TPATools.config.ModConfigs;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -152,6 +156,16 @@ public class ModUtils {
             return;
         }
 
+        // 强制加载原区块3秒，确保传送后原区块不会立即卸载
+        if (player.level() instanceof ServerLevel sourceLevel) {
+            int chunkX = player.chunkPosition().x;
+            int chunkZ = player.chunkPosition().z;
+            sourceLevel.setChunkForced(chunkX, chunkZ, true);
+            sourceLevel.getServer().tell(new TickTask(sourceLevel.getServer().getTickCount() + 60, () -> {
+                sourceLevel.setChunkForced(chunkX, chunkZ, false);
+            }));
+        }
+
         // 获取骑乘链中的所有实体
         List<Entity> rideChain = getRiddenEntities(player);
 
@@ -171,7 +185,8 @@ public class ModUtils {
             relativeRotations.put(rider, relativeYRot);
         }
 
-        // 从最底层的实体开始传送
+        // 从最底层的实体开始传送（先传马再传人），
+        // 确保玩家客户端加载区块时骑乘实体已在目标区块中
         for (int i = rideChain.size() - 1; i >= 0; i--) {
             Entity entity = rideChain.get(i);
 
@@ -180,7 +195,6 @@ public class ModUtils {
                 if (entity instanceof ServerPlayer serverPlayer) {
                     serverPlayer.teleportTo(targetLevel, x, y, z, yRot, xRot);
                 } else {
-                    // 对于非玩家实体，使用通用传送方法
                     entity.unRide();
                     teleportEntityToPosition(entity, targetLevel, x, y, z, yRot, xRot);
                 }
@@ -199,11 +213,19 @@ public class ModUtils {
                     if (entity instanceof ServerPlayer serverPlayer) {
                         serverPlayer.teleportTo(targetLevel, newX, newY, newZ, newYRot, entity.getXRot());
                     } else {
-                        // 对于非玩家实体，使用通用传送方法
                         entity.unRide();
                         teleportEntityToPosition(entity, targetLevel, newX, newY, newZ, newYRot, entity.getXRot());
                     }
                 }
+            }
+        }
+
+        // 重新建立骑乘关系
+        for (int i = 0; i < rideChain.size() - 1; i++) {
+            Entity rider = rideChain.get(i);
+            Entity vehicle = rideChain.get(i + 1);
+            if (rider.isAlive() && vehicle.isAlive() && !rider.isPassenger()) {
+                rider.startRiding(vehicle, true);
             }
         }
     }
@@ -220,18 +242,25 @@ public class ModUtils {
      * 传送实体到指定位置（用于非ServerPlayer实体）
      */
     private static void teleportEntityToPosition(Entity entity, ServerLevel targetLevel, double x, double y, double z, float yRot, float xRot) {
-        // 移除实体的骑乘关系
-        entity.unRide();
-
-        // 检查目标维度是否相同
         if (entity.level() != targetLevel) {
             // 不同维度，需要跨维度传送
-            entity.changeDimension(targetLevel);
-            // changeDimension后实体位置可能不会立即更新，等待实体到达新维度后再设置位置
+            entity.unRide();
+            Entity newEntity = entity.changeDimension(targetLevel);
+            newEntity.moveTo(x, y, z, yRot, xRot);
+        } else {
+            // 不使用 teleportTo()，因为它会 ejectPassengers 然后广播给"追踪者"，
+            // 而刚被踢下的玩家已不再追踪该实体，导致客户端收不到实体数据。
+            // 改用 removeEntity → moveTo → addEntity 手动更新区块追踪，
+            // 确保后续玩家传送加载区块时实体已在目标区块中。
+            entity.unRide();
+            if (entity.level() instanceof ServerLevel serverLevel) {
+                serverLevel.getChunkSource().removeEntity(entity);
+            }
+            entity.moveTo(x, y, z, yRot, xRot);
+            if (entity.level() instanceof ServerLevel serverLevel) {
+                serverLevel.getChunkSource().addEntity(entity);
+            }
         }
-
-        // 设置实体位置和旋转
-        entity.moveTo(x, y, z, yRot, xRot);
     }
 
     public static void tick() {
@@ -259,5 +288,51 @@ public class ModUtils {
             }
         }
         toRemove.forEach(requests::remove);
+    }
+
+    public static BlockPos findSafeTeleportPosition(ServerLevel level, double x, double y, double z) {
+        BlockPos target = BlockPos.containing(x, y, z);
+
+        if (isPositionSafeForTeleport(level, target)) {
+            return target;
+        }
+
+        for (int radius = 1; radius <= 5; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.abs(dx) != radius && Math.abs(dz) != radius) continue;
+
+                    for (int dy = -2; dy <= 2; dy++) {
+                        BlockPos checkPos = target.offset(dx, dy, dz);
+                        if (isPositionSafeForTeleport(level, checkPos)) {
+                            return checkPos;
+                        }
+                    }
+                }
+            }
+        }
+
+        return target;
+    }
+
+    private static boolean isPositionSafeForTeleport(ServerLevel level, BlockPos pos) {
+        BlockState feetBlock = level.getBlockState(pos);
+        BlockState headBlock = level.getBlockState(pos.above());
+        BlockState belowBlock = level.getBlockState(pos.below());
+
+        if (feetBlock.canOcclude() || headBlock.canOcclude()) {
+            return false;
+        }
+
+        if (!belowBlock.blocksMotion()) {
+            return false;
+        }
+
+        if (feetBlock.is(Blocks.LAVA) || headBlock.is(Blocks.LAVA)
+                || belowBlock.is(Blocks.LAVA)) {
+            return false;
+        }
+
+        return true;
     }
 }

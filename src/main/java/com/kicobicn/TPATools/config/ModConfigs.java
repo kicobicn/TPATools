@@ -38,6 +38,7 @@ public class ModConfigs {
     public static final ForgeConfigSpec.ConfigValue<Integer> HOME_INVITE_COOLDOWN;
     public static final ForgeConfigSpec.ConfigValue<Integer> HOME_INVITE_TIMEOUT;
     public static final ForgeConfigSpec.ConfigValue<Boolean> ALLOW_TELEPORT_RIDE_ENTITY;
+    public static final ForgeConfigSpec.ConfigValue<Boolean> SAFE_TELEPORT;
 
     public static final ForgeConfigSpec.ConfigValue<String> DATABASE_TYPE;
     public static final ForgeConfigSpec.ConfigValue<String> MYSQL_HOST;
@@ -153,6 +154,9 @@ public class ModConfigs {
         ALLOW_TELEPORT_RIDE_ENTITY = builder
                 .comment("Allow teleporting ridden entities with players")
                 .define("allowTeleportRideEntity", false);
+        SAFE_TELEPORT = builder
+                .comment("If teleport destination is blocked, search for a safe nearby position")
+                .define("safeTeleport", true);
 
         builder.push("database");
         DATABASE_TYPE = builder.comment("Storage type: 'json' or 'mysql'")
@@ -420,6 +424,29 @@ public class ModConfigs {
                                                     );
                                                     DebugLog.info("Home invite cooldown time set to {} seconds by {}",
                                                             time, context.getSource().getDisplayName().getString());
+                                                    return 1;
+                                                })))
+                                .then(Commands.literal("safeteleport")
+                                        .executes(context -> {
+                                            ServerPlayer player = context.getSource().getPlayerOrException();
+                                            ModChatMenus.ConfigMenus.showSafeTeleportMenu(player);
+                                            return 1;
+                                        })
+                                        .then(Commands.argument("enable", StringArgumentType.string())
+                                                .suggests(BOOLEAN_SUGGESTIONS)
+                                                .executes(context -> {
+                                                    String enableStr = StringArgumentType.getString(context, "enable");
+                                                    boolean enable = enableStr.equalsIgnoreCase("true");
+                                                    SAFE_TELEPORT.set(enable);
+                                                    SAFE_TELEPORT.save();
+                                                    context.getSource().sendSuccess(
+                                                            () -> ModUtils.translateWithFallback(
+                                                                    enable ? "command.tpatool.config.safeteleport.enabled" : "command.tpatool.config.safeteleport.disabled",
+                                                                    enable ? "Safe teleport enabled." : "Safe teleport disabled."
+                                                            ),
+                                                            true
+                                                    );
+                                                    DebugLog.info("Safe teleport {} by {}", enable ? "enabled" : "disabled", context.getSource().getDisplayName().getString());
                                                     return 1;
                                                 })))
                                 .then(Commands.literal("allowteleportrideentity")
