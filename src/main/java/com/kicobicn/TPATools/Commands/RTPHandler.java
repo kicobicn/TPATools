@@ -161,7 +161,7 @@ public class RTPHandler {
         if (!blockBelow.blocksMotion() || blockBelow.is(Blocks.LAVA) || 
             blockBelow.is(Blocks.MAGMA_BLOCK) || blockBelow.is(Blocks.FIRE) ||
             blockBelow.is(Blocks.SOUL_FIRE) || blockBelow.is(Blocks.CACTUS) ||
-                blockBelow.is(Blocks.BEDROCK) || blockBelow.is(Blocks.WATER) ||
+            blockBelow.is(Blocks.BEDROCK) || blockBelow.is(Blocks.WATER) ||
                 blockBelow.is(Blocks.DEEPSLATE)){
             return false;
         }
@@ -180,10 +180,11 @@ public class RTPHandler {
         // 检查当前位置是否安全（非危险方块）
         if (blockState.is(Blocks.LAVA) || blockState.is(Blocks.MAGMA_BLOCK) ||
             blockState.is(Blocks.FIRE) || blockState.is(Blocks.SOUL_FIRE) ||
-            blockState.is(Blocks.CACTUS) || blockState.is(Blocks.SWEET_BERRY_BUSH)) {
+            blockState.is(Blocks.CACTUS) || blockState.is(Blocks.SWEET_BERRY_BUSH) ||
+            blockState.is(Blocks.BEDROCK)) {
             return false;
         }
-        
+
         return true;
     }
 
@@ -223,17 +224,17 @@ public class RTPHandler {
         rtpCooldowns.put(playerUUID, System.currentTimeMillis());
     }
 
-    /**
-     * 清除冷却时间（用于调试或重置）
-     */
-    public static void clearCooldown(UUID playerUUID) {
-        rtpCooldowns.remove(playerUUID);
-    }
-
-    /**
-     * 获取所有冷却中的玩家
-     */
-    public static Map<UUID, Long> getCooldowns() {
-        return new HashMap<>(rtpCooldowns);
-    }
+//    /**
+//     * 清除冷却时间（用于调试或重置）
+//     */
+//    public static void clearCooldown(UUID playerUUID) {
+//        rtpCooldowns.remove(playerUUID);
+//    }
+//
+//    /**
+//     * 获取所有冷却中的玩家
+//     */
+//    public static Map<UUID, Long> getCooldowns() {
+//        return new HashMap<>(rtpCooldowns);
+//    }
 }

@@ -248,10 +248,6 @@ public class ModUtils {
             Entity newEntity = entity.changeDimension(targetLevel);
             newEntity.moveTo(x, y, z, yRot, xRot);
         } else {
-            // 不使用 teleportTo()，因为它会 ejectPassengers 然后广播给"追踪者"，
-            // 而刚被踢下的玩家已不再追踪该实体，导致客户端收不到实体数据。
-            // 改用 removeEntity → moveTo → addEntity 手动更新区块追踪，
-            // 确保后续玩家传送加载区块时实体已在目标区块中。
             entity.unRide();
             if (entity.level() instanceof ServerLevel serverLevel) {
                 serverLevel.getChunkSource().removeEntity(entity);

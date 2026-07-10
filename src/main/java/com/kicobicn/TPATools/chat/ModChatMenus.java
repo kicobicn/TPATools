@@ -30,37 +30,6 @@ public class ModChatMenus {
         }
     }
 
-    // 菜单数据结构
-//    private static class MenuData {
-//        String title;
-//        List<MenuItem> items;
-//        int totalPages;
-//        int currentPage;
-//
-//        public MenuData(String title, List<MenuItem> items, int currentPage, int totalPages) {
-//            this.title = title;
-//            this.items = items;
-//            this.currentPage = currentPage;
-//            this.totalPages = totalPages;
-//        }
-//    }
-
-    // 菜单项
-//    private static class MenuItem {
-//        String name;
-//        String hoverText;
-//        String command;
-//        ChatFormatting color;
-//        boolean isButton;
-//
-//        public MenuItem(String name, String hoverText, String command, ChatFormatting color, boolean isButton) {
-//            this.name = name;
-//            this.hoverText = hoverText;
-//            this.command = command;
-//            this.color = color;
-//            this.isButton = isButton;
-//        }
-//    }
 
     @SubscribeEvent
     public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
