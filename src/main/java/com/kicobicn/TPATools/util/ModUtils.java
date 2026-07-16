@@ -6,13 +6,17 @@ import com.kicobicn.TPATools.Commands.HomeHandler;
 import com.kicobicn.TPATools.Commands.TPAHandler;
 import com.kicobicn.TPATools.Commands.WarpHandler;
 import com.kicobicn.TPATools.config.ModConfigs;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.portal.DimensionTransition;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.server.ServerStartingEvent;
@@ -206,6 +210,16 @@ public class ModUtils {
             return;
         }
 
+        // 强制加载原区块3秒，确保传送后原区块不会立即卸载
+        if (player.level() instanceof ServerLevel sourceLevel) {
+            int chunkX = player.chunkPosition().x;
+            int chunkZ = player.chunkPosition().z;
+            sourceLevel.setChunkForced(chunkX, chunkZ, true);
+            sourceLevel.getServer().tell(new TickTask(sourceLevel.getServer().getTickCount() + 60, () -> {
+                sourceLevel.setChunkForced(chunkX, chunkZ, false);
+            }));
+        }
+
         // 获取骑乘链中的所有实体
         List<Entity> rideChain = getRiddenEntities(player);
 
@@ -260,6 +274,14 @@ public class ModUtils {
                 }
             }
         }
+        // 重新建立骑乘关系
+        for (int i = 0; i < rideChain.size() - 1; i++) {
+            Entity rider = rideChain.get(i);
+            Entity vehicle = rideChain.get(i + 1);
+            if (rider.isAlive() && vehicle.isAlive() && !rider.isPassenger()) {
+                rider.startRiding(vehicle, true);
+            }
+        }
     }
 
     /**
@@ -274,26 +296,33 @@ public class ModUtils {
      * 传送实体到指定位置（用于非ServerPlayer实体）
      */
     private static void teleportEntityToPosition(Entity entity, ServerLevel targetLevel, double x, double y, double z, float yRot, float xRot) {
-        // 移除实体的骑乘关系
-        entity.unRide();
 
         // 检查目标维度是否相同
         if (entity.level() != targetLevel) {
+            entity.unRide();
             DimensionTransition transition = new DimensionTransition(
-                    targetLevel,
-                    new Vec3(x, y, z),
-                    Vec3.ZERO,
-                    yRot,
-                    xRot,
-                    DimensionTransition.DO_NOTHING
+                    targetLevel,           // 目标维度
+                    new Vec3(x, y, z),    // 目标位置
+                    Vec3.ZERO,            // 目标速度
+                    yRot,                 // Y轴旋转
+                    xRot,                 // X轴旋转
+                    DimensionTransition.DO_NOTHING  // 传送后行为
             );
             entity.changeDimension(transition);
-            // changeDimension 方法会处理实体的传送和位置更新，因此无需再调用 moveTo
-            return;
+        } else {
+            // 不使用 teleportTo()，因为它会 ejectPassengers 然后广播给"追踪者"，
+            // 而刚被踢下的玩家已不再追踪该实体，导致客户端收不到实体数据。
+            // 改用 removeEntity → moveTo → addEntity 手动更新区块追踪，
+            // 确保后续玩家传送加载区块时实体已在目标区块中。
+            entity.unRide();
+            if (entity.level() instanceof ServerLevel serverLevel) {
+                serverLevel.getChunkSource().removeEntity(entity);
+            }
+            entity.moveTo(x, y, z, yRot, xRot);
+            if (entity.level() instanceof ServerLevel serverLevel) {
+                serverLevel.getChunkSource().addEntity(entity);
+            }
         }
-
-        // 如果在同一维度，则直接设置实体位置和旋转
-        entity.moveTo(x, y, z, yRot, xRot);
     }
 
     public static void tick() {
@@ -321,5 +350,50 @@ public class ModUtils {
             }
         }
         toRemove.forEach(requests::remove);
+    }
+    public static BlockPos findSafeTeleportPosition(ServerLevel level, double x, double y, double z) {
+        BlockPos target = BlockPos.containing(x, y, z);
+
+        if (isPositionSafeForTeleport(level, target)) {
+            return target;
+        }
+
+        for (int radius = 1; radius <= 5; radius++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (Math.abs(dx) != radius && Math.abs(dz) != radius) continue;
+
+                    for (int dy = -2; dy <= 2; dy++) {
+                        BlockPos checkPos = target.offset(dx, dy, dz);
+                        if (isPositionSafeForTeleport(level, checkPos)) {
+                            return checkPos;
+                        }
+                    }
+                }
+            }
+        }
+
+        return target;
+    }
+
+    private static boolean isPositionSafeForTeleport(ServerLevel level, BlockPos pos) {
+        BlockState feetBlock = level.getBlockState(pos);
+        BlockState headBlock = level.getBlockState(pos.above());
+        BlockState belowBlock = level.getBlockState(pos.below());
+
+        if (feetBlock.canOcclude() || headBlock.canOcclude()) {
+            return false;
+        }
+
+        if (!belowBlock.blocksMotion()) {
+            return false;
+        }
+
+        if (feetBlock.is(Blocks.LAVA) || headBlock.is(Blocks.LAVA)
+                || belowBlock.is(Blocks.LAVA)) {
+            return false;
+        }
+
+        return true;
     }
 }

@@ -150,38 +150,41 @@ public class RTPHandler {
     /**
      * 检查位置是否安全
      */
-    private static boolean isSafePosition(ServerLevel world, BlockPos pos, BlockState blockState, 
-                                         BlockState blockBelow, BlockState blockAbove) {
-        // 检查是否在有效Y范围内
+    private static boolean isSafePosition(ServerLevel world, BlockPos pos, BlockState blockState,
+                                          BlockState blockBelow, BlockState blockAbove) {
+
         if (pos.getY() < RTP_MIN_Y.get() || pos.getY() > RTP_MAX_Y.get()) {
             return false;
         }
-        
+
         // 检查当前位置是否可站立（非液体、非危险方块）
-        if (!blockBelow.blocksMotion() || blockBelow.is(Blocks.LAVA) || 
-            blockBelow.is(Blocks.MAGMA_BLOCK) || blockBelow.is(Blocks.FIRE) ||
-            blockBelow.is(Blocks.SOUL_FIRE) || blockBelow.is(Blocks.CACTUS)) {
+        if (!blockBelow.blocksMotion() || blockBelow.is(Blocks.LAVA) ||
+                blockBelow.is(Blocks.MAGMA_BLOCK) || blockBelow.is(Blocks.FIRE) ||
+                blockBelow.is(Blocks.SOUL_FIRE) || blockBelow.is(Blocks.CACTUS) ||
+                blockBelow.is(Blocks.BEDROCK) || blockBelow.is(Blocks.WATER) ||
+                blockBelow.is(Blocks.DEEPSLATE)) {
             return false;
         }
-        
+
         // 检查当前位置是否可站立（非液体）
         FluidState fluidState = blockState.getFluidState();
         if (!fluidState.isEmpty()) {
             return false;
         }
-        
+
         // 检查上方是否有足够空间（至少2格高）
         if (!blockAbove.isAir() || !world.getBlockState(pos.above(2)).isAir()) {
             return false;
         }
-        
+
         // 检查当前位置是否安全（非危险方块）
         if (blockState.is(Blocks.LAVA) || blockState.is(Blocks.MAGMA_BLOCK) ||
-            blockState.is(Blocks.FIRE) || blockState.is(Blocks.SOUL_FIRE) ||
-            blockState.is(Blocks.CACTUS) || blockState.is(Blocks.SWEET_BERRY_BUSH)) {
+                blockState.is(Blocks.FIRE) || blockState.is(Blocks.SOUL_FIRE) ||
+                blockState.is(Blocks.CACTUS) || blockState.is(Blocks.SWEET_BERRY_BUSH) ||
+                blockState.is(Blocks.BEDROCK)){
             return false;
         }
-        
+
         return true;
     }
 

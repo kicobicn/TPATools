@@ -3,6 +3,7 @@ package com.kicobicn.TPATools.Commands;
 import com.kicobicn.TPATools.config.ModConfigs;
 import com.kicobicn.TPATools.util.ModUtils;
 import net.minecraft.commands.Commands;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -83,10 +84,16 @@ public class BackHandler {
             return 0;
         }
         recordPosition(player);
-        // 使用支持骑乘链和拴绳链的传送方法
-        ModUtils.teleportWithAllChains(player, level, pos.x, pos.y, pos.z, pos.yRot, pos.xRot);
-        player.teleportTo(level, pos.x, pos.y, pos.z, pos.yRot, pos.xRot);
-            player.sendSystemMessage(ModUtils.translateWithFallback(
+
+        double bx = pos.x, by = pos.y, bz = pos.z;
+        if (ModConfigs.SAFE_TELEPORT.get()) {
+            BlockPos safePos = ModUtils.findSafeTeleportPosition(level, bx, by, bz);
+            bx = safePos.getX() + 0.5;
+            by = safePos.getY();
+            bz = safePos.getZ() + 0.5;
+        }
+        ModUtils.teleportWithAllChains(player, level, bx, by, bz, pos.yRot, pos.xRot);
+        player.sendSystemMessage(ModUtils.translateWithFallback(
                 "command.tpatool.back.success", "Teleported to previous position."
         ));
         ModConfigs.DebugLog.info("Player {} teleported back to dimension={}, x={}, y={}, z={}",

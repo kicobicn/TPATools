@@ -16,6 +16,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
@@ -667,8 +668,17 @@ public class HomeHandler {
                 return 0;
             }
             BackHandler.recordPosition(player);
-            player.teleportTo(level, home.position.x, home.position.y, home.position.z,
-                    home.position.yRot, home.position.xRot);
+            double bx = home.position.x, by = home.position.y, bz = home.position.z;
+            if (ModConfigs.SAFE_TELEPORT.get()) {
+                BlockPos safePos = ModUtils.findSafeTeleportPosition(level, bx, by, bz);
+                bx = safePos.getX() + 0.5;
+                by = safePos.getY();
+                bz = safePos.getZ() + 0.5;
+            }
+            ModUtils.teleportWithAllChains(player, level, bx, by, bz, home.position.yRot, home.position.xRot);
+            player.sendSystemMessage(ModUtils.translateWithFallback(
+                    "command.tpatool.back.success", "Teleported to previous position."
+            ));
             player.sendSystemMessage(ModUtils.translateWithFallback(
                     "command.tpatool.home.teleported", "Teleported to home %s.", name
             ));
@@ -947,9 +957,16 @@ public class HomeHandler {
             }
 
             recordLastPosition(player);
+            double homeX = home.position.x, homeY = home.position.y, homeZ = home.position.z;
+            if (ModConfigs.SAFE_TELEPORT.get()) {
+                BlockPos safePos = ModUtils.findSafeTeleportPosition(targetLevel, homeX, homeY, homeZ);
+                homeX = safePos.getX() + 0.5;
+                homeY = safePos.getY();
+                homeZ = safePos.getZ() + 0.5;
+            }
             player.teleportTo(
                     targetLevel,
-                    home.position.x, home.position.y, home.position.z,
+                    homeX, homeY, homeZ,
                     home.position.xRot, home.position.yRot
             );
             player.sendSystemMessage(ModUtils.translateWithFallback(
@@ -1289,8 +1306,15 @@ public class HomeHandler {
     private static void teleportPlayer(ServerPlayer player, double x, double y, double z, ResourceLocation dimension) {
         ServerLevel targetLevel = player.getServer().getLevel(ResourceKey.create(Registries.DIMENSION, dimension));
         if (targetLevel != null) {
-            // 使用支持骑乘链和拴绳链的传送方法
-            ModUtils.teleportWithAllChains(player, targetLevel, x, y, z, player.getYRot(), player.getXRot());
+
+            double tx = x, ty = y, tz = z;
+            if (ModConfigs.SAFE_TELEPORT.get()) {
+                BlockPos safePos = ModUtils.findSafeTeleportPosition(targetLevel, tx, ty, tz);
+                tx = safePos.getX() + 0.5;
+                ty = safePos.getY();
+                tz = safePos.getZ() + 0.5;
+            }
+            ModUtils.teleportWithAllChains(player, targetLevel, tx, ty, tz, player.getYRot(), player.getXRot());
         } else {
             player.sendSystemMessage(ModUtils.translateWithFallback("command.tpatool.home.invite.teleport_failed", "Failed to teleport: invalid dimension.").withStyle(ChatFormatting.RED));
         }

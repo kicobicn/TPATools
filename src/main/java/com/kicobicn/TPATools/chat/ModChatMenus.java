@@ -863,6 +863,22 @@ public class ModChatMenus {
                             true))
                     .append(Component.literal("\n"));
 
+            // 安全传送设置
+            boolean safeTeleport = ModConfigs.SAFE_TELEPORT.get();
+            ChatFormatting safeColor = safeTeleport ? ChatFormatting.GREEN : ChatFormatting.GRAY;
+            menu.append(createI18nButton("menu.tpatools.config.branch.safeteleport",
+                            "menu.tpatools.config.hover.safeteleport",
+                            "/tpatools configs safeteleport",
+                            ChatFormatting.WHITE,
+                            true))
+                    .append(createI18nButton(safeTeleport ? "menu.tpatools.config.button.safeteleport_true" : "menu.tpatools.config.button.safeteleport_false",
+                            "menu.tpatools.config.hover.safeteleport",
+                            "/tpatools configs safeteleport " + (!safeTeleport),
+                            safeColor,
+                            true))
+                    .append(Component.literal("\n"));
+
+
             menu.append(ModUtils.translateWithFallback("menu.tpatools.config.branch.rtpscope", "- RTP Scope (rtpscope)\n")
                     .withStyle(ChatFormatting.WHITE));
 
@@ -1279,6 +1295,30 @@ public class ModChatMenus {
                             "menu.tpatools.config.hover.allowteleportrideentity",
                             "/tpatools configs allowteleportrideentity " + (!allowRideTeleport),
                             rideColor,
+                            true));
+
+            menu.append(Component.literal("\n=============================\n")
+                    .withStyle(ChatFormatting.GOLD));
+
+            player.sendSystemMessage(menu);
+        }
+
+        public static void showSafeTeleportMenu(ServerPlayer player) {
+            MutableComponent menu = Component.literal("");
+            menu.append(Component.literal("====== TPATools - setting/safeteleport ======\n")
+                    .withStyle(ChatFormatting.GOLD));
+            boolean safeTeleport = ModConfigs.SAFE_TELEPORT.get();
+            ChatFormatting safeColor = safeTeleport ? ChatFormatting.GREEN : ChatFormatting.RED;
+            menu.append(ModUtils.translateWithFallback("menu.tpatools.config.tips.safeteleport",
+                                    "When enabled, if the teleport destination is blocked, the system will search for a safe nearby position.\n")
+                            .withStyle(ChatFormatting.WHITE))
+                    .append(ModUtils.translateWithFallback("menu.tpatools.config.default.safeteleport",
+                                    "- Default: true (currently set to %s)\n", safeTeleport)
+                            .withStyle(ChatFormatting.GRAY))
+                    .append(createI18nButton(safeTeleport ? "menu.tpatools.config.button.safeteleport_true" : "menu.tpatools.config.button.safeteleport_false",
+                            "menu.tpatools.config.hover.safeteleport",
+                            "/tpatools configs safeteleport " + (!safeTeleport),
+                            safeColor,
                             true));
 
             menu.append(Component.literal("\n=============================\n")
